@@ -1,0 +1,34 @@
+<svg preserveAspectRatio="none" width="100%" height="100%" overflow="visible" style="display: block;" viewBox="0 0 1118 943" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Background" clip-path="url(#clip0_0_4)">
+<rect id="background" y="5" width="1118" height="938" fill="var(--fill-0, #050505)"/>
+<g id="red glow" filter="url(#filter0_f_0_4)">
+<circle cy="171" r="300" fill="var(--fill-0, #FF3030)" fill-opacity="0.16"/>
+</g>
+<g id="green glow" filter="url(#filter1_f_0_4)">
+<ellipse cx="1039" cy="825" rx="330" ry="260" fill="var(--fill-0, #0E6B3C)" fill-opacity="0.22"/>
+</g>
+<g id="Gold highlight glow" filter="url(#filter2_f_0_4)">
+<circle cx="1017" cy="39" r="280" fill="var(--fill-0, #F2B85C)" fill-opacity="0.09"/>
+</g>
+</g>
+<defs>
+<filter id="filter0_f_0_4" x="-400" y="-229" width="800" height="800" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur stdDeviation="50" result="effect1_foregroundBlur_0_4"/>
+</filter>
+<filter id="filter1_f_0_4" x="609" y="465" width="860" height="720" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur stdDeviation="50" result="effect1_foregroundBlur_0_4"/>
+</filter>
+<filter id="filter2_f_0_4" x="637" y="-341" width="760" height="760" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur stdDeviation="50" result="effect1_foregroundBlur_0_4"/>
+</filter>
+<clipPath id="clip0_0_4">
+<rect width="1118" height="943" fill="white"/>
+</clipPath>
+</defs>
+</svg>

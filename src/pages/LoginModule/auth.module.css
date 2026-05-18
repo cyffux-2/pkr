@@ -1,0 +1,492 @@
+/* ══════════════════════════════
+   AUTH PAGES — SHARED STYLES
+══════════════════════════════ */
+.authBg {
+  width: 100%;
+  min-height: 100vh;
+  background: #0a0a0a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* padding vertical adaptatif : laisse de l'air mais ne force pas le scroll */
+  padding: clamp(1rem, 3vh, 2.5rem) clamp(0.75rem, 2vw, 1.5rem);
+  position: relative;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* ── Background blobs ── */
+.bgCircleRed {
+  position: absolute;
+  top: 50%;
+  left: -8vw;
+  transform: translateY(-50%);
+  width: 55vw;
+  height: 55vw;
+  background: #2a0d0d;
+  border-radius: 50%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.bgCircleGrey {
+  position: absolute;
+  top: -20vh;
+  right: -8vw;
+  width: 50vw;
+  height: 50vw;
+  background: #151515;
+  border-radius: 50%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.bgCircleGreen {
+  position: absolute;
+  bottom: -20vh;
+  right: -5vw;
+  width: 45vw;
+  height: 45vw;
+  background: #081510;
+  border-radius: 50%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ══════════════════════════════
+   REGISTER CARD (dark, single col)
+══════════════════════════════ */
+.card {
+  background: #121212;
+  border: 1px solid #1a1a1a;
+  border-radius: 24px;
+  padding: 1.5rem 1.75rem;
+  width: 100%;
+  max-width: 420px;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+}
+
+.logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+}
+
+.logoImage {
+  height: 70px;
+  width: auto;
+  object-fit: contain;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #ff3b44;
+  text-align: center;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.field {
+  margin-bottom: 0.75rem;
+}
+
+.label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #a0a0a0;
+  margin-bottom: 8px;
+}
+
+.input {
+  width: 100%;
+  background: #1c1c1c;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-size: 14px;
+  color: #fff;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.input::placeholder { color: #666; }
+.input:focus { border-color: #333; background: #222; }
+
+.levelGroup { display: flex; gap: 12px; }
+
+.levelBtn {
+  flex: 1;
+  padding: 10px 10px;
+  background: #1c1c1c;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  color: #a0a0a0;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  text-align: center;
+}
+.levelBtn:hover { background: #252525; color: #fff; }
+
+.levelBtnActive {
+  flex: 1;
+  padding: 10px 10px;
+  background: #ff3b44;
+  border: 1px solid #ff3b44;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+}
+
+.btnRed {
+  width: 100%;
+  background: #ff3b44;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 13px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+  margin-top: 0.6rem;
+  font-family: inherit;
+  box-shadow: 0 10px 25px -5px rgba(255, 59, 68, 0.45);
+}
+.btnRed:hover { background: #ff4d55; box-shadow: 0 12px 30px -5px rgba(255, 59, 68, 0.55); }
+.btnRed:active { transform: scale(0.99); }
+.btnRed:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+
+.error {
+  background: rgba(255, 59, 68, 0.15);
+  border: 1px solid rgba(255, 59, 68, 0.3);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #ff8a90;
+  margin-bottom: 0.75rem;
+}
+
+.notice {
+  background: rgba(42, 160, 96, 0.16);
+  border: 1px solid rgba(42, 160, 96, 0.34);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #88d8ad;
+  margin-bottom: 0.75rem;
+}
+
+.inlineAuthButton {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.inlineAuthButton:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.footer { text-align: center; font-size: 13px; color: #888; margin-top: 1rem; }
+.footer a { color: #a0a0a0; text-decoration: none; font-weight: 500; transition: color 0.2s; }
+.footer a:hover { color: #fff; }
+
+/* ══════════════════════════════
+   LOGIN LAYOUT — two columns
+══════════════════════════════ */
+.loginContainer {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: clamp(1rem, 2vw, 2rem);
+  width: 100%;
+  max-width: 1020px;
+  /* hauteur max = viewport - padding du parent */
+  max-height: calc(100vh - clamp(2rem, 6vh, 5rem));
+  position: relative;
+  z-index: 1;
+}
+
+/* ══════════════════════════════
+   LEFT PANEL
+══════════════════════════════ */
+.leftPanel {
+  display: none;
+  flex-direction: column;
+  background: #111111;
+  border: 1px solid #1e1e1e;
+  border-radius: 28px;
+  flex: 1;
+  max-width: 500px;
+  /* se limite à la hauteur du container parent */
+  min-height: 0;
+  overflow: hidden;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8);
+}
+
+@media (min-width: 850px) {
+  .leftPanel { display: flex; }
+}
+
+/* Texte : logo + titre + desc en flux normal */
+.leftContent {
+  padding: clamp(1.5rem, 2.5vw, 2.5rem) clamp(1.5rem, 2.5vw, 2.5rem) 1.25rem;
+  flex-shrink: 0;
+}
+
+.logoLeft {
+  margin-bottom: 1.25rem;
+}
+
+.logoImageLeft {
+  height: clamp(50px, 6vh, 68px);
+  width: auto;
+  object-fit: contain;
+}
+
+.heroTitle {
+  font-size: clamp(22px, 2.8vw, 40px);
+  font-weight: 900;
+  color: #fff;
+  line-height: 1.08;
+  font-family: 'Arial Black', 'Impact', sans-serif;
+  margin: 0 0 0.75rem 0;
+  text-transform: uppercase;
+}
+
+.heroDesc {
+  font-size: clamp(12px, 1.1vw, 14px);
+  color: #999;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ══════════════════════════════
+   TABLE ZONE
+   Prend tout l'espace restant.
+   Les chips sont positionnées
+   en % de CETTE zone uniquement.
+══════════════════════════════ */
+.tableZone {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  /* empêche de grandir au-delà du parent */
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Table SVG : calée en bas de la zone, au-dessus des stats */
+.tableSvg {
+  position: absolute;
+  bottom: 72px;
+  left: -5%;
+  width: 110%;
+  height: auto;
+}
+
+/* Chip 1 — pile du haut */
+.chipStack1 {
+  position: absolute;
+  left: 55%;
+  bottom: calc(72px + 38%);
+  width: clamp(60px, 16%, 90px);
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Chip 2 — pile du bas */
+.chipStack2 {
+  position: absolute;
+  left: 45%;
+  bottom: calc(72px + 6%);
+  width: clamp(75px, 20%, 110px);
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Stats row : épinglées en bas de la zone */
+.heroStats {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0 1rem 1rem 1rem;
+  z-index: 3;
+}
+
+.heroStats > div {
+  flex: 1;
+  background: rgba(18, 18, 18, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 12px;
+  padding: 10px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 3px;
+}
+
+.heroStats strong {
+  font-size: clamp(16px, 1.8vw, 20px);
+  font-weight: 800;
+  color: #fff;
+}
+
+.heroStats span {
+  font-size: 10px;
+  color: #777;
+  line-height: 1.3;
+}
+
+/* ══════════════════════════════
+   RIGHT CARD (white)
+══════════════════════════════ */
+.cardLight {
+  background: #ffffff;
+  border-radius: 28px;
+  padding: clamp(1.5rem, 2.5vw, 2.5rem) clamp(1.5rem, 2.5vw, 2.5rem);
+  width: 100%;
+  max-width: 430px;
+  /* se limite à la hauteur du container */
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+}
+
+/* Masque la scrollbar si le contenu déborde sur très petits écrans */
+.cardLight::-webkit-scrollbar { display: none; }
+.cardLight { scrollbar-width: none; }
+
+.cardLight .logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.cardLight .logoImage {
+  height: clamp(70px, 9vh, 100px);
+  width: auto;
+  object-fit: contain;
+}
+
+.subtitleLight {
+  font-size: 14px;
+  color: #888;
+  text-align: center;
+  margin-bottom: 1.25rem;
+  line-height: 1.5;
+}
+
+.labelLight {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 6px;
+}
+
+.inputLight {
+  width: 100%;
+  background: #f4f4f4;
+  border: 1.5px solid #ececec;
+  border-radius: 12px;
+  padding: 13px 16px;
+  font-size: 14px;
+  color: #111;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.inputLight::placeholder { color: #bbb; }
+.inputLight:focus { border-color: #ccc; background: #fff; }
+
+.rememberRowLight {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  margin-top: 0.6rem;
+  font-size: 13px;
+}
+
+.checkLabelLight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #777;
+  cursor: pointer;
+}
+
+.checkLabelLight input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: #ff3b44;
+  cursor: pointer;
+}
+
+.forgotLinkLight {
+  color: #ff3b44;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 13px;
+}
+.forgotLinkLight:hover { color: #ff1a25; }
+
+.footerLight {
+  text-align: center;
+  font-size: 13px;
+  color: #777;
+  margin-top: 1.25rem;
+}
+
+.footerLight a {
+  color: #ff3b44;
+  text-decoration: none;
+  font-weight: 700;
+  transition: color 0.2s;
+}
+.footerLight a:hover { color: #ff1a25; }
+
+/* Subtitle pour cartes sombres (ForgotPassword, etc.) */
+.subtitleDark {
+  font-size: 13px;
+  color: #777;
+  text-align: center;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}

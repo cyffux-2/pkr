@@ -1,0 +1,62 @@
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { ActiveTablesPreloader } from './components/ActiveTablesPreloader';
+import { TableTurnAutoSwitcher } from './components/TableTurnAutoSwitcher';
+import Layout from './components/layout/Layout';
+import Home from './pages/HomeModule/Home';
+import Settings from './pages/SettingsModule/Settings';
+import Lobby from './pages/Lobby';
+import Game from './pages/Game';
+import Tournaments from './pages/Tournaments';
+import TournamentLobby from './pages/TournamentLobby';
+import Leaderboard from './pages/Leaderboard';
+import Login from './pages/LoginModule/Login';
+import Register from './pages/LoginModule/Register';
+import ForgotPassword from './pages/LoginModule/ForgotPassword';
+import ResetPassword from './pages/LoginModule/ResetPassword';
+import ConfirmEmail from './pages/LoginModule/ConfirmEmail';
+import AuthCallback from './pages/LoginModule/AuthCallback';
+import NotFound from './pages/NotFound';
+
+function AppRoutes() {
+  return (
+    <BrowserRouter>
+      <TableTurnAutoSwitcher />
+      <Routes>
+        {/* Pages sans Navbar */}
+        <Route path="/"               element={<Login />} />
+        <Route path="/home"           element={<Home />} />
+        <Route path="/settings"       element={<Settings />} />
+        <Route path="/login"          element={<Login />} />
+        <Route path="/register"       element={<Register />} />
+        <Route path="/confirm-email"  element={<ConfirmEmail />} />
+        <Route path="/auth/callback"  element={<AuthCallback />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/tournaments"    element={<Tournaments />} />
+        <Route path="/tournament-lobby/:tournamentId" element={<TournamentLobby />} />
+        <Route path="/game/:tableId"  element={<Game />} />
+
+        {/* Pages avec Navbar */}
+        <Route path="/*" element={
+          <Layout>
+            <Routes>
+              <Route path="/lobby"          element={<Lobby />} />
+              <Route path="/leaderboard"    element={<Leaderboard />} />
+              <Route path="*"              element={<NotFound />} />
+            </Routes>
+          </Layout>
+        } />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <ActiveTablesPreloader />
+      <AppRoutes />
+    </AuthProvider>
+  );
+}

@@ -1,0 +1,73 @@
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { supabase } from '../../lib/supabase';
+import styles from './auth.module.css';
+
+export default function AuthCallback() {
+  const navigate = useNavigate();
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const errorDescription = params.get('error_description');
+
+    if (errorDescription) {
+      navigate('/login', {
+        replace: true,
+        state: { notice: 'Compte validé. Tu peux maintenant te connecter.' },
+      });
+      return;
+    }
+
+    if (!code) {
+      setError('Lien de confirmation invalide ou expiré.');
+      return;
+    }
+
+    supabase.auth.exchangeCodeForSession(code)
+      .then(({ error }) => {
+        if (error) {
+          navigate('/login', {
+            replace: true,
+            state: { notice: 'Compte validé. Tu peux maintenant te connecter.' },
+          });
+          return;
+        }
+
+        navigate('/login', {
+          replace: true,
+          state: { notice: 'Email confirmé, tu peux maintenant te connecter.' },
+        });
+      });
+  }, [navigate]);
+
+  return (
+    <div className={styles.authBg}>
+      <div className={styles.bgCircleRed}></div>
+      <div className={styles.bgCircleGrey}></div>
+      <div className={styles.bgCircleGreen}></div>
+
+      <div className={styles.card}>
+        <div className={styles.logo}>
+          <img src="/logo.png" alt="Logo PKR" className={styles.logoImage} />
+        </div>
+
+        {error ? (
+          <>
+            <p className={styles.title}>Confirmation impossible</p>
+            <div className={styles.error}>{error}</div>
+            <div className={styles.footer} style={{ marginTop: '2rem' }}>
+              <Link to="/login">Retour à la connexion</Link>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className={styles.title}>Confirmation en cours</p>
+            <p className={styles.subtitleDark}>Validation de ton compte PKR...</p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

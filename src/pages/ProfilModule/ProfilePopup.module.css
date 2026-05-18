@@ -1,0 +1,140 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.popup {
+  position: absolute;
+  bottom: 90px;
+  left: 20px;
+  width: 240px;
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 24px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+  pointer-events: all;
+  animation: popIn 0.15s ease-out;
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+.avatarWrap {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+}
+
+.avatarImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatarFallback {
+  width: 100%;
+  height: 100%;
+  background: #2a2a2a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 900;
+  color: #888;
+  font-family: 'Arial Black', sans-serif;
+}
+
+.identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.pseudo {
+  font-size: 17px;
+  font-weight: 800;
+  color: #fff;
+  font-family: 'Arial Black', sans-serif;
+}
+
+.tag {
+  font-size: 12px;
+  color: #555;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.eloWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #252525;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  padding: 8px 16px;
+  width: 100%;
+  justify-content: center;
+}
+
+.eloLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #555;
+  text-transform: uppercase;
+}
+
+.eloValue {
+  font-size: 18px;
+  font-weight: 900;
+  color: #fff;
+  font-family: 'Arial Black', sans-serif;
+}
+
+.btns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.btnSecondary,
+.btnPrimary {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+  border: none;
+  text-align: center;
+}
+
+.btnSecondary {
+  background: #252525;
+  color: #aaa;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+.btnSecondary:hover { background: #2e2e2e; color: #fff; }
+
+.btnPrimary {
+  background: #ff3b44;
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(255, 59, 68, 0.3);
+}
+.btnPrimary:hover { background: #ff4d55; }

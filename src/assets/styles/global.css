@@ -1,0 +1,43 @@
+:root {
+  --gold: #C9A84C;
+  --gold-light: #E8D5A3;
+  --bg-dark: #0D1117;
+  --bg-darker: #080C10;
+  --bg-felt: #0A2A1A;
+  --border-gold: rgba(201, 168, 76, 0.2);
+  --text-muted: rgba(232, 213, 163, 0.5);
+  --font-display: 'Playfair Display', serif;
+  --font-body: 'Crimson Pro', serif;
+}
+
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  overflow-x: hidden;
+  overflow: hidden
+}
+
+body {
+  background: var(--bg-dark);
+  color: var(--gold-light);
+  font-family: var(--font-body);
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}

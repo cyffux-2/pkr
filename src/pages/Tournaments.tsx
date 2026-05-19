@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { publicAsset } from '../lib/publicAssets';
 import { useAuth } from '../context/AuthContext';
 import { ensureTournamentTableConnection, getCachedTournamentTable } from '../lib/tournamentConnections';
 import { ensureTableStateCache } from '../lib/tableStateCache';
@@ -305,7 +306,7 @@ export default function Tournaments() {
     <div className={styles.page} data-name="Main Page - tournoi">
       <aside className={styles.sidebar}>
         <button className={styles.logoWrap} onClick={() => navigate('/home')} aria-label="Accueil">
-          <img src="/figma/main-page-nothing/pkr-logo-black-bg.png" alt="PKR" className={styles.logoImg} />
+          <img src={publicAsset('/figma/main-page-nothing/pkr-logo-black-bg.png')} alt="PKR" className={styles.logoImg} />
         </button>
 
         <nav className={styles.modeList}>
@@ -323,10 +324,10 @@ export default function Tournaments() {
 
         <div className={styles.bottomIcons}>
           <button className={styles.iconBtn} onClick={() => navigate('/settings')} title="Paramètres">
-            <img src="/figma/main-page-nothing/settings-icon.svg" alt="" className={styles.iconImg} />
+            <img src={publicAsset('/figma/main-page-nothing/settings-icon.svg')} alt="" className={styles.iconImg} />
           </button>
           <button className={styles.iconBtn} onClick={() => navigate('/settings')} title="Profil">
-            <img src="/figma/main-page-nothing/profile-icon.svg" alt="" className={styles.iconImg} />
+            <img src={publicAsset('/figma/main-page-nothing/profile-icon.svg')} alt="" className={styles.iconImg} />
           </button>
         </div>
       </aside>

@@ -38,7 +38,8 @@ const SEATS = [
   styles.seatBottom,
 ];
 
-const RAISE_PRESETS = [20, 33, 50, 75, 100, 150, 200];
+const BET_PRESET_OPTIONS = [20, 33, 50, 75, 100, 150, 200];
+const DEFAULT_BET_PRESETS = [50, 100];
 const ACTION_TIMEOUT_MS = 15_000;
 const ACTION_CONFIRMATION_GRACE_MS = 2_500;
 const ACTION_LABELS: Record<PlayerAction, string> = {
@@ -117,6 +118,32 @@ function getLuckMessage(value: number | undefined) {
   if (value < 0.5) return 'très malchanceux';
   if (value < 1) return 'malchanceux';
   return '';
+}
+
+function getConfiguredBetPresets(value: unknown) {
+  if (!Array.isArray(value)) return DEFAULT_BET_PRESETS;
+
+  const presets = value
+    .map(item => Number(item))
+    .filter(item => BET_PRESET_OPTIONS.includes(item));
+
+  return presets.length > 0 ? Array.from(new Set(presets)) : DEFAULT_BET_PRESETS;
+}
+
+function getPlayersClockwiseFromHero(players: (TablePlayer | null)[], heroSeatIndex: number) {
+  if (heroSeatIndex < 0 || players.length === 0) {
+    return players.filter((player): player is TablePlayer => Boolean(player)).slice(0, 5);
+  }
+
+  const ordered: TablePlayer[] = [];
+  for (let offset = 1; offset < players.length; offset++) {
+    const player = players[(heroSeatIndex + offset) % players.length];
+    if (player) {
+      ordered.push(player);
+    }
+  }
+
+  return ordered.slice(0, 5);
 }
 
 function getUserDisplayName(user: { user_metadata?: Record<string, unknown>; email?: string } | null | undefined) {
@@ -252,10 +279,14 @@ export default function Game() {
   const eloDelta = displayedInitialElo !== null && displayedCurrentElo !== null ? displayedCurrentElo - displayedInitialElo : null;
   const luckMessage = getLuckMessage(heroEloResult?.chanceMultiplier);
   const luckMessageText = luckMessage ? `, ${luckMessage}` : '';
+  const betPresets = useMemo(
+    () => getConfiguredBetPresets(user?.user_metadata?.bet_presets),
+    [user?.user_metadata?.bet_presets],
+  );
   const isWinningPlayer = (player: TablePlayer | null | undefined) => Boolean(player?.id && winningPlayerIds.includes(player.id));
   const visiblePlayers = useMemo(() => {
     const hero = tablePlayers.find(player => player.id === user?.id) ?? (heroSeatIndex >= 0 ? table?.players[heroSeatIndex] ?? null : null);
-    const opponents = tablePlayers.filter(player => player.id !== user?.id).slice(0, 5);
+    const opponents = getPlayersClockwiseFromHero(table?.players ?? [], heroSeatIndex);
     return {
       opponents,
       hero,
@@ -272,6 +303,11 @@ export default function Game() {
     const minRaiseTo = currentMaxBet > 0 ? currentMaxBet + bigBlind : bigBlind;
     const target = Math.max(minRaiseTo, currentMaxBet + raiseBase);
     return Math.min(heroBet + heroChips, target);
+  };
+  const getAllInRaiseToChips = () => {
+    const heroBet = visiblePlayers.hero?.bet ?? 0;
+    const heroChips = visiblePlayers.hero?.chips ?? 0;
+    return heroBet + heroChips;
   };
   const formatRaiseInputFromChips = (amount: number) => {
     const bigBlind = table?.BB ?? 50;
@@ -753,11 +789,14 @@ export default function Game() {
             </div>
           )}
           <div className={styles.presetRow}>
-            {RAISE_PRESETS.map(percent => (
+            {betPresets.map(percent => (
               <button key={percent} className={styles.presetBtn} onClick={() => setRaiseTo(formatRaiseInputFromChips(getPresetRaiseToChips(percent)))}>
                 {percent}%
               </button>
             ))}
+            <button className={`${styles.presetBtn} ${styles.allInPresetBtn}`} onClick={() => setRaiseTo(formatRaiseInputFromChips(getAllInRaiseToChips()))}>
+              All-in
+            </button>
           </div>
           <div className={styles.actionRow}>
             {(['FOLD', checkOrCallAction, 'RAISE'] as PlayerAction[]).map(action => (

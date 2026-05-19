@@ -233,6 +233,44 @@
   flex-shrink: 0;
 }
 
+.betPresetChoices {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 360px;
+}
+
+.betPresetChoice {
+  min-width: 58px;
+  height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: #2a2a2a;
+  color: #aaa;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.08s;
+}
+
+.betPresetChoice:hover {
+  background: #333;
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.betPresetChoice:active {
+  transform: scale(0.96);
+}
+
+.betPresetChoiceActive {
+  background: #ff9d00;
+  border-color: rgba(255, 157, 0, 0.78);
+  color: #050505;
+}
+
 /* Danger row */
 .rowDanger {
   display: flex;

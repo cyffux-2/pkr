@@ -556,6 +556,8 @@
 }
 
 .presetRow {
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 5px;
   margin-bottom: 13px;
 }
@@ -606,6 +608,11 @@
   padding: 0 10px;
   border-radius: 999px;
   font-size: clamp(12px, 1.25vw, 20px);
+}
+
+.allInPresetBtn {
+  --button-bg: rgba(255, 73, 73, 0.86);
+  min-width: clamp(58px, 7vw, 104px);
 }
 
 .actionBtn {

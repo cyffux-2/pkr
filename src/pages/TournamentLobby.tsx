@@ -122,6 +122,10 @@ export default function TournamentLobby() {
         stack: tablePlayer ? tablePlayer.chips : index === 0 ? 1000 : 1000,
         bet: tablePlayer?.bet ?? 0,
       };
+    }).sort((left, right) => {
+      const leftStack = typeof left.stack === 'number' ? left.stack : Number.NEGATIVE_INFINITY;
+      const rightStack = typeof right.stack === 'number' ? right.stack : Number.NEGATIVE_INFINITY;
+      return rightStack - leftStack;
     });
   }, [alivePlayerIds, profiles, tableState, tournament]);
   const currentLevelIndex = getLevelIndexFromPublishedBlinds(tableState?.SB, tableState?.BB) ?? getCurrentLevelIndex(tournament, now);

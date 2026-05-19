@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { translateAuthError } from '../../lib/authErrors';
+import { publicAsset } from '../../lib/publicAssets';
 import styles from './auth.module.css';
 
 export default function ForgotPassword() {
@@ -31,7 +32,7 @@ export default function ForgotPassword() {
 
       <div className={styles.card}>
         <div className={styles.logo}>
-          <img src="/logo.png" alt="Logo PKR" className={styles.logoImage} />
+          <img src={publicAsset('/logo.png')} alt="Logo PKR" className={styles.logoImage} />
         </div>
 
         {sent ? (

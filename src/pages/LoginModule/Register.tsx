@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { translateAuthError } from '../../lib/authErrors';
+import { publicAsset } from '../../lib/publicAssets';
 import styles from './auth.module.css';
 
 type Level = 'debutant' | 'intermediaire' | 'avance';
@@ -68,7 +69,7 @@ export default function Register() {
           <div className={styles.logoCircle}>
             {/* Si tu as un SVG spécifique pour le logo K en diamant, insère-le ici */}
             <div className={styles.logo}>
-              <img src="/logo.png" alt="Logo PKR" className={styles.logoImage} />
+              <img src={publicAsset('/logo.png')} alt="Logo PKR" className={styles.logoImage} />
             </div>
           </div>
         </div>

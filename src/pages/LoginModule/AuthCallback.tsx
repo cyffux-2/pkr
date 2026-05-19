@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { publicAsset } from '../../lib/publicAssets';
 import styles from './auth.module.css';
 
 export default function AuthCallback() {
@@ -50,7 +51,7 @@ export default function AuthCallback() {
 
       <div className={styles.card}>
         <div className={styles.logo}>
-          <img src="/logo.png" alt="Logo PKR" className={styles.logoImage} />
+          <img src={publicAsset('/logo.png')} alt="Logo PKR" className={styles.logoImage} />
         </div>
 
         {error ? (

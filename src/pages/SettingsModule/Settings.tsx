@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
 import styles from './Settings.module.css';
 import { Section } from './settings.types';
 import { NAV_ITEMS } from './settings.nav';
 import { SectionPlaceholder } from './settings.components';
 import { SectionUtilisateur } from './Sections/UserSection';
 import { SectionSon } from './Sections/SoundSection';
+import { SectionJeu } from './Sections/GameSection';
 import { SectionRaccourcis } from './Sections/ControlSection';
 import { SectionDeconnexion } from './Sections/DeconnectionSection';
 
@@ -21,7 +21,7 @@ export default function Settings() {
       case 'utilisateur': return <SectionUtilisateur />;
       case 'son':         return <SectionSon />;
       case 'interface':   return <SectionPlaceholder title="Interface"  sub="Thème, couleurs et affichage." />;
-      case 'jeu':         return <SectionPlaceholder title="Jeu"        sub="Mises automatiques et préférences de jeu." />;
+      case 'jeu':         return <SectionJeu />;
       case 'raccourcis':  return <SectionRaccourcis />;
       case 'deconnexion': return <SectionDeconnexion />;
       default:            return null;

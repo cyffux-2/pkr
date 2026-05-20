@@ -23,7 +23,9 @@ export function TournamentTableTab({
   const preview = useTablePreview(tableId, userId);
 
   const useFallbackCards = !tableId || !preview.tableState;
-  const labels = preview.isEliminated
+  const labels = preview.isFinished
+    ? preview.isVictory ? ['G', 'G'] : ['K', 'O']
+    : preview.isEliminated
     ? ['K', 'O']
     : preview.heroHasCards
     ? [formatWireCard(preview.privateCards[0]) || '?', formatWireCard(preview.privateCards[1]) || '?']
@@ -31,12 +33,16 @@ export function TournamentTableTab({
       ? ['A', 'K']
       : ['', ''];
   const cards = preview.heroHasCards ? preview.privateCards : [];
-  const title = preview.isEliminated
+  const title = preview.isFinished
+    ? `${tournamentName} - voir le résultat`
+    : preview.isEliminated
     ? `${tournamentName} - voir le résultat`
     : preview.isHeroTurn
       ? `${tournamentName} - à toi de jouer`
       : tournamentName;
-  const ariaLabel = preview.isEliminated
+  const ariaLabel = preview.isFinished
+    ? `Voir le résultat de ${tournamentName}`
+    : preview.isEliminated
     ? `Voir le résultat de ${tournamentName}`
     : preview.isHeroTurn
       ? `Reprendre ${tournamentName}, à toi de jouer`
@@ -46,9 +52,9 @@ export function TournamentTableTab({
     <button
       className={[
         classes.cardsTab,
-        preview.isEliminated ? classes.cardsTabEliminated : '',
+        preview.isEliminated && !preview.isVictory ? classes.cardsTabEliminated : '',
         selected ? classes.cardsTabSelected : '',
-        preview.isHeroTurn ? classes.cardsTabPulse : '',
+        preview.isHeroTurn && !preview.isFinished ? classes.cardsTabPulse : '',
       ].filter(Boolean).join(' ')}
       onClick={onClick}
       title={title}

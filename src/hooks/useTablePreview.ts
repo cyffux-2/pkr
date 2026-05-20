@@ -55,7 +55,12 @@ export function useTablePreview(tableId: number | null | undefined, userId: stri
     const hasResolvedTable = Boolean(tableId && tableState);
     const heroHasCards = Boolean(hero?.has_cards);
     const isHeroTurn = Boolean(tableState && heroSeatIndex >= 0 && tableState.playerToPlay === heroSeatIndex);
-    const isEliminated = Boolean(hasResolvedTable && heroSeatIndex < 0);
+    const isFinished = isTableEnded(tableState);
+    const winnerIds = tableState?.tournamentWinnerIds?.length
+      ? tableState.tournamentWinnerIds
+      : tableState?.winningPlayerIds ?? [];
+    const isVictory = Boolean(isFinished && userId && winnerIds.includes(userId));
+    const isEliminated = Boolean(hasResolvedTable && (heroSeatIndex < 0 || (isFinished && !isVictory)));
 
     return {
       tableState,
@@ -63,6 +68,15 @@ export function useTablePreview(tableId: number | null | undefined, userId: stri
       heroHasCards,
       isHeroTurn,
       isEliminated,
+      isFinished,
+      isVictory,
     };
   }, [privateCards, tableId, tableState, userId]);
+}
+
+function isTableEnded(state: TableState | null | undefined) {
+  return state?.game_status === 3 ||
+    state?.game_status === '3' ||
+    state?.game_status === 'ENDED' ||
+    Boolean(state?.tournamentWinnerIds?.length);
 }

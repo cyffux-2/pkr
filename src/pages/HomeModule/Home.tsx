@@ -6,6 +6,11 @@ import { publicAsset } from '../../lib/publicAssets';
 import { ensureTournamentTableConnection, getCachedTournamentTable } from '../../lib/tournamentConnections';
 import { ensureTableStateCache } from '../../lib/tableStateCache';
 import { watchDismissedEliminatedTables } from '../../lib/eliminatedTournamentDismissals';
+import {
+  getActiveTablesForUser,
+  watchActiveTablesForUser,
+  type ActiveTableEntry,
+} from '../../lib/activeTablesRegistry';
 import { TournamentTableTab } from '../../components/TournamentTableTab';
 import { ProfilePopup } from '../ProfilModule/ProfilePopup';
 import styles from './Home.module.css';
@@ -22,6 +27,7 @@ interface ActiveTournament {
   tournament_name: string;
   start_date:      string;
   players:         string[];
+  tableId?:        number;
 }
 
 const GAME_MODES = [
@@ -38,6 +44,7 @@ export default function Home() {
   const [profile,      setProfile]      = useState<Profile | null>(null);
   const [popupOpen,    setPopupOpen]    = useState(false);
   const [activeTournaments, setActiveTournaments] = useState<ActiveTournament[]>([]);
+  const [cachedActiveTables, setCachedActiveTables] = useState<ActiveTableEntry[]>([]);
   const [dismissedEliminations, setDismissedEliminations] = useState<Set<number>>(new Set());
   const [selectedTableTournamentId, setSelectedTableTournamentId] = useState<number | null>(null);
   const [assignedTableIds, setAssignedTableIds] = useState<Record<number, number>>({});
@@ -101,20 +108,29 @@ export default function Home() {
   useEffect(() => {
     if (!user) {
       setDismissedEliminations(new Set());
+      setCachedActiveTables([]);
       return;
     }
 
-    return watchDismissedEliminatedTables(user.id, setDismissedEliminations);
+    const unwatchDismissed = watchDismissedEliminatedTables(user.id, setDismissedEliminations);
+    const unwatchActiveTables = watchActiveTablesForUser(user.id, setCachedActiveTables);
+
+    setCachedActiveTables(getActiveTablesForUser(user.id));
+
+    return () => {
+      unwatchDismissed();
+      unwatchActiveTables();
+    };
   }, [user]);
 
   const visibleActiveTournaments = useMemo(
-    () => activeTournaments.filter(tournament => {
+    () => mergeActiveTournamentTabs(activeTournaments, cachedActiveTables, user?.id).filter(tournament => {
       if (!user) return false;
 
-      const tableId = assignedTableIds[tournament.id] ?? getCachedTournamentTable(tournament.id, user.id);
+      const tableId = tournament.tableId ?? assignedTableIds[tournament.id] ?? getCachedTournamentTable(tournament.id, user.id);
       return !tableId || !dismissedEliminations.has(tableId);
     }),
-    [activeTournaments, assignedTableIds, dismissedEliminations, user],
+    [activeTournaments, assignedTableIds, cachedActiveTables, dismissedEliminations, user],
   );
 
   useEffect(() => {
@@ -125,6 +141,11 @@ export default function Home() {
       if (!session?.access_token) return;
 
       for (const tournament of visibleActiveTournaments) {
+        if (tournament.tableId) {
+          void ensureTableStateCache(tournament.tableId);
+          continue;
+        }
+
         void ensureTournamentTableConnection({
           tournamentId: tournament.id,
           userId: user.id,
@@ -160,7 +181,7 @@ export default function Home() {
       return;
     }
 
-    const tableId = getCachedTournamentTable(tournament.id, user.id) ?? await ensureTournamentTableConnection({
+    const tableId = tournament.tableId ?? getCachedTournamentTable(tournament.id, user.id) ?? await ensureTournamentTableConnection({
       tournamentId: tournament.id,
       userId: user.id,
       accessToken: session.access_token,
@@ -235,7 +256,7 @@ export default function Home() {
                 <TournamentTableTab
                   key={tournament.id}
                   tournamentName={tournament.tournament_name}
-                  tableId={user ? assignedTableIds[tournament.id] ?? getCachedTournamentTable(tournament.id, user.id) : null}
+                  tableId={user ? tournament.tableId ?? assignedTableIds[tournament.id] ?? getCachedTournamentTable(tournament.id, user.id) : null}
                   userId={user?.id}
                   selected={selectedTableTournamentId === tournament.id}
                   classes={styles}
@@ -255,4 +276,32 @@ export default function Home() {
       )}
     </div>
   );
+}
+
+function mergeActiveTournamentTabs(
+  dbTournaments: ActiveTournament[],
+  cachedTables: ActiveTableEntry[],
+  userId: string | undefined,
+) {
+  const byTournament = new Map<number, ActiveTournament>();
+
+  dbTournaments.forEach(tournament => {
+    byTournament.set(tournament.id, { ...tournament });
+  });
+
+  cachedTables.forEach(entry => {
+    const current = byTournament.get(entry.tournamentId);
+    byTournament.set(entry.tournamentId, {
+      id: entry.tournamentId,
+      tournament_name: current?.tournament_name ?? entry.tournamentName ?? `Tournoi #${entry.tournamentId}`,
+      start_date: current?.start_date ?? entry.startDate ?? '',
+      players: current?.players ?? (userId ? [userId] : []),
+      tableId: entry.tableId,
+    });
+  });
+
+  return Array.from(byTournament.values()).sort((left, right) => {
+    if (!left.start_date || !right.start_date) return left.id - right.id;
+    return new Date(left.start_date).getTime() - new Date(right.start_date).getTime();
+  });
 }

@@ -34,6 +34,7 @@ export function ActiveTablesPreloader() {
   const userId = user?.id;
   const accessToken = session?.access_token;
   const [activeTournaments, setActiveTournaments] = useState<ActiveTournamentRow[]>([]);
+  const [knownTournamentsById, setKnownTournamentsById] = useState<Record<number, ActiveTournamentRow>>({});
   const [tableIdsByTournament, setTableIdsByTournament] = useState<Record<number, number>>({});
   const [dismissedEliminations, setDismissedEliminations] = useState<Set<number>>(new Set());
 
@@ -84,7 +85,15 @@ export function ActiveTablesPreloader() {
         return;
       }
 
-      setActiveTournaments((data ?? []) as ActiveTournamentRow[]);
+      const rows = (data ?? []) as ActiveTournamentRow[];
+      setActiveTournaments(rows);
+      setKnownTournamentsById(current => {
+        const next = { ...current };
+        rows.forEach(tournament => {
+          next[tournament.id] = tournament;
+        });
+        return next;
+      });
     };
 
     void fetchActiveTournaments();
@@ -116,7 +125,9 @@ export function ActiveTablesPreloader() {
       const activeIds = new Set(registeredTournamentIds);
       const next = Object.entries(current).reduce<Record<number, number>>((accumulator, [rawTournamentId, tableId]) => {
         const tournamentId = Number(rawTournamentId);
-        if (activeIds.has(tournamentId)) {
+        const cachedState = getCachedTableState(tableId);
+        const keepKnownTable = cachedState && !dismissedEliminations.has(tableId);
+        if (activeIds.has(tournamentId) || keepKnownTable) {
           accumulator[tournamentId] = tableId;
         }
         return accumulator;
@@ -124,7 +135,7 @@ export function ActiveTablesPreloader() {
 
       return Object.keys(next).length === Object.keys(current).length ? current : next;
     });
-  }, [registeredTournamentIds]);
+  }, [dismissedEliminations, registeredTournamentIds]);
 
   useEffect(() => {
     if (!userId || !accessToken || activeTournamentIds.length === 0) return;
@@ -198,12 +209,18 @@ export function ActiveTablesPreloader() {
       userId,
       Object.entries(tableIdsByTournament)
         .filter(([, tableId]) => !dismissedEliminations.has(tableId))
-        .map(([rawTournamentId, tableId]) => ({
-          tournamentId: Number(rawTournamentId),
-          tableId,
-        })),
+        .map(([rawTournamentId, tableId]) => {
+          const tournamentId = Number(rawTournamentId);
+          const tournament = knownTournamentsById[tournamentId];
+          return {
+            tournamentId,
+            tableId,
+            tournamentName: tournament?.tournament_name,
+            startDate: tournament?.start_date,
+          };
+        }),
     );
-  }, [dismissedEliminations, tableIdsByTournament, userId]);
+  }, [dismissedEliminations, knownTournamentsById, tableIdsByTournament, userId]);
 
   return null;
 }

@@ -160,6 +160,10 @@ function statusLabel(status: TableState['game_status'] | undefined) {
   return 'Connexion';
 }
 
+function isTableEnded(status: TableState['game_status'] | undefined) {
+  return status === 3 || status === '3' || status === 'ENDED';
+}
+
 function eventPlayerName(event: TableEvent, players: TablePlayer[], userId: string | undefined) {
   if (event.playerId && event.playerId === userId) return 'Tu';
   const player = players.find(candidate => candidate.id === event.playerId);
@@ -266,6 +270,8 @@ export default function Game() {
   const currentMaxBet = useMemo(() => tablePlayers.reduce((max, player) => Math.max(max, player.bet ?? 0), 0), [tablePlayers]);
   const showOpponentCards = Boolean(table?.showdown);
   const winningPlayerIds = table?.winningPlayerIds ?? [];
+  const tournamentWinnerIds = table?.tournamentWinnerIds ?? [];
+  const finalWinnerIds = tournamentWinnerIds.length > 0 ? tournamentWinnerIds : winningPlayerIds;
   const activeActionRequestId = table?.actionRequestId ?? null;
   const promptAlreadySubmitted = activeActionRequestId !== null && submittedActionRequestId === activeActionRequestId;
   const canAttemptAction = isHeroTurn && !promptAlreadySubmitted;
@@ -279,6 +285,12 @@ export default function Game() {
   const eloDelta = displayedInitialElo !== null && displayedCurrentElo !== null ? displayedCurrentElo - displayedInitialElo : null;
   const luckMessage = getLuckMessage(heroEloResult?.chanceMultiplier);
   const luckMessageText = luckMessage ? `, ${luckMessage}` : '';
+  const heroWonTournament = Boolean(
+    user?.id &&
+    !eliminationDismissed &&
+    isTableEnded(table?.game_status) &&
+    finalWinnerIds.includes(user.id)
+  );
   const betPresets = useMemo(
     () => getConfiguredBetPresets(user?.user_metadata?.bet_presets),
     [user?.user_metadata?.bet_presets],
@@ -470,7 +482,7 @@ export default function Game() {
   }, [eliminationDismissed, heroEliminated, resolvedTournamentId, table, user]);
 
   useEffect(() => {
-    if (!heroEliminated || !user) return;
+    if ((!heroEliminated && !heroWonTournament) || !user) return;
 
     let cancelled = false;
     let attempts = 0;
@@ -508,7 +520,7 @@ export default function Game() {
       cancelled = true;
       if (interval) window.clearInterval(interval);
     };
-  }, [heroEliminated, initialElo, user]);
+  }, [heroEliminated, heroWonTournament, initialElo, user]);
 
   useEffect(() => {
     setSubmittedActionRequestId(current => {
@@ -766,15 +778,15 @@ export default function Game() {
           <div className={`${styles.dealer} ${styles.heroDealer}`}>D</div>
         )}
 
-        {heroEliminated && (
-          <div className={styles.eliminationNotice}>
-            <strong>Éliminé</strong>
+        {(heroEliminated || heroWonTournament) && (
+          <div className={`${styles.eliminationNotice} ${heroWonTournament ? styles.victoryNotice : ''}`}>
+            <strong>{heroWonTournament ? 'Victoire' : 'Éliminé'}</strong>
             <span>
               {eloDelta === null
                 ? 'ELO en cours...'
                 : `ELO ${displayedInitialElo ?? '-'} -> ${displayedCurrentElo ?? '-'} (${eloDelta > 0 ? '+' : ''}${eloDelta}${luckMessageText})`}
             </span>
-            <small>Mode spectateur</small>
+            <small>{heroWonTournament ? 'Tournoi terminé' : 'Mode spectateur'}</small>
             <button className={styles.eliminationQuitButton} onClick={quitEliminatedTournament}>
               Quitter
             </button>

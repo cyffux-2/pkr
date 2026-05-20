@@ -6,6 +6,11 @@ import { useAuth } from '../context/AuthContext';
 import { ensureTournamentTableConnection, getCachedTournamentTable } from '../lib/tournamentConnections';
 import { ensureTableStateCache } from '../lib/tableStateCache';
 import { watchDismissedEliminatedTables } from '../lib/eliminatedTournamentDismissals';
+import {
+  getActiveTablesForUser,
+  watchActiveTablesForUser,
+  type ActiveTableEntry,
+} from '../lib/activeTablesRegistry';
 import { TournamentTableTab } from '../components/TournamentTableTab';
 import styles from './Tournaments.module.css';
 
@@ -19,6 +24,7 @@ interface TournamentRow {
   ranked: boolean;
   time_per_level: number;
   alive_players_count?: number;
+  tableId?: number;
 }
 
 interface PokerTableRow {
@@ -76,14 +82,20 @@ export default function Tournaments() {
   const [assignedTableIds, setAssignedTableIds] = useState<Record<number, number>>({});
   const [alivePlayersByTournament, setAlivePlayersByTournament] = useState<Record<number, number>>({});
   const [dismissedEliminations, setDismissedEliminations] = useState<Set<number>>(new Set());
+  const [cachedActiveTables, setCachedActiveTables] = useState<ActiveTableEntry[]>([]);
 
   const activeTournaments = useMemo(
-    () => tournaments.filter(tournament => (
-      user &&
-      tournament.players.includes(user.id) &&
-      !dismissedEliminations.has(assignedTableIds[tournament.id] ?? getCachedTournamentTable(tournament.id, user.id) ?? -1)
-    )),
-    [assignedTableIds, dismissedEliminations, tournaments, user]
+    () => mergeActiveTournamentTabs(
+      tournaments.filter(tournament => Boolean(user && tournament.players.includes(user.id))),
+      cachedActiveTables,
+      user?.id,
+    ).filter(tournament => {
+      if (!user) return false;
+
+      const tableId = tournament.tableId ?? assignedTableIds[tournament.id] ?? getCachedTournamentTable(tournament.id, user.id);
+      return !dismissedEliminations.has(tableId ?? -1);
+    }),
+    [assignedTableIds, cachedActiveTables, dismissedEliminations, tournaments, user]
   );
 
   const formatPlayersCount = (tournament: TournamentRow) => {
@@ -168,10 +180,19 @@ export default function Tournaments() {
   useEffect(() => {
     if (!user) {
       setDismissedEliminations(new Set());
+      setCachedActiveTables([]);
       return;
     }
 
-    return watchDismissedEliminatedTables(user.id, setDismissedEliminations);
+    const unwatchDismissed = watchDismissedEliminatedTables(user.id, setDismissedEliminations);
+    const unwatchActiveTables = watchActiveTablesForUser(user.id, setCachedActiveTables);
+
+    setCachedActiveTables(getActiveTablesForUser(user.id));
+
+    return () => {
+      unwatchDismissed();
+      unwatchActiveTables();
+    };
   }, [user]);
 
   const requestTournamentTable = useCallback(async (tournamentId: number) => {
@@ -205,6 +226,11 @@ export default function Tournaments() {
       if (!session?.access_token) return;
 
       for (const tournament of activeTournaments) {
+        if (tournament.tableId) {
+          void ensureTableStateCache(tournament.tableId);
+          continue;
+        }
+
         void ensureTournamentTableConnection({
           tournamentId: tournament.id,
           userId: user.id,
@@ -287,7 +313,7 @@ export default function Tournaments() {
       setSelectedTableTournamentId(current => current === tournament.id ? null : current);
     }, 450);
 
-    const knownTableId = assignedTableIds[tournament.id] ?? getCachedTournamentTable(tournament.id, user.id);
+    const knownTableId = tournament.tableId ?? assignedTableIds[tournament.id] ?? getCachedTournamentTable(tournament.id, user.id);
     if (!knownTableId) setFeedback('Recherche de ta table...');
 
     const tableId = knownTableId ?? await requestTournamentTable(tournament.id);
@@ -394,7 +420,7 @@ export default function Tournaments() {
                 <TournamentTableTab
                   key={tournament.id}
                   tournamentName={tournament.tournament_name}
-                  tableId={user ? assignedTableIds[tournament.id] ?? getCachedTournamentTable(tournament.id, user.id) : null}
+                  tableId={user ? tournament.tableId ?? assignedTableIds[tournament.id] ?? getCachedTournamentTable(tournament.id, user.id) : null}
                   userId={user?.id}
                   selected={selectedTableTournamentId === tournament.id}
                   classes={styles}
@@ -407,4 +433,37 @@ export default function Tournaments() {
       </main>
     </div>
   );
+}
+
+function mergeActiveTournamentTabs(
+  dbTournaments: TournamentRow[],
+  cachedTables: ActiveTableEntry[],
+  userId: string | undefined,
+) {
+  const byTournament = new Map<number, TournamentRow>();
+
+  dbTournaments.forEach(tournament => {
+    byTournament.set(tournament.id, { ...tournament });
+  });
+
+  cachedTables.forEach(entry => {
+    const current = byTournament.get(entry.tournamentId);
+    byTournament.set(entry.tournamentId, {
+      id: entry.tournamentId,
+      tournament_name: current?.tournament_name ?? entry.tournamentName ?? `Tournoi #${entry.tournamentId}`,
+      start_date: current?.start_date ?? entry.startDate ?? '',
+      max_players: current?.max_players ?? 0,
+      min_players: current?.min_players ?? 0,
+      players: current?.players ?? (userId ? [userId] : []),
+      ranked: current?.ranked ?? true,
+      time_per_level: current?.time_per_level ?? 0,
+      alive_players_count: current?.alive_players_count,
+      tableId: entry.tableId,
+    });
+  });
+
+  return Array.from(byTournament.values()).sort((left, right) => {
+    if (!left.start_date || !right.start_date) return left.id - right.id;
+    return new Date(left.start_date).getTime() - new Date(right.start_date).getTime();
+  });
 }

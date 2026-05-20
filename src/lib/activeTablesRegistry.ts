@@ -1,6 +1,8 @@
 export type ActiveTableEntry = {
   tableId: number;
   tournamentId: number;
+  tournamentName?: string;
+  startDate?: string;
 };
 
 const activeTablesByUser = new Map<string, ActiveTableEntry[]>();
@@ -11,7 +13,12 @@ function normalizeTables(tables: ActiveTableEntry[]) {
 
   tables.forEach(table => {
     if (!Number.isFinite(table.tableId) || !Number.isFinite(table.tournamentId)) return;
-    byTableId.set(table.tableId, table);
+    byTableId.set(table.tableId, {
+      tableId: table.tableId,
+      tournamentId: table.tournamentId,
+      tournamentName: table.tournamentName,
+      startDate: table.startDate,
+    });
   });
 
   return Array.from(byTableId.values()).sort((left, right) => left.tableId - right.tableId);
@@ -29,8 +36,8 @@ export function getActiveTablesForUser(userId: string) {
 export function setActiveTablesForUser(userId: string, tables: ActiveTableEntry[]) {
   const next = normalizeTables(tables);
   const current = activeTablesByUser.get(userId) ?? [];
-  const currentFingerprint = current.map(table => `${table.tournamentId}:${table.tableId}`).join('|');
-  const nextFingerprint = next.map(table => `${table.tournamentId}:${table.tableId}`).join('|');
+  const currentFingerprint = current.map(table => `${table.tournamentId}:${table.tableId}:${table.tournamentName ?? ''}:${table.startDate ?? ''}`).join('|');
+  const nextFingerprint = next.map(table => `${table.tournamentId}:${table.tableId}:${table.tournamentName ?? ''}:${table.startDate ?? ''}`).join('|');
 
   if (currentFingerprint === nextFingerprint) return;
 

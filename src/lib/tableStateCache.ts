@@ -64,6 +64,7 @@ export type TableState = {
   game_status: string | number;
   showdown?: boolean;
   winningPlayerIds?: string[];
+  tournamentWinnerIds?: string[];
   eloResults?: Record<string, EloAdjustmentInfo>;
   lastEvent?: TableEvent | null;
   events?: TableEvent[];
@@ -160,6 +161,7 @@ function stateFingerprint(state: TableState) {
     gameStatus: state.game_status,
     showdown: Boolean(state.showdown),
     winners: state.winningPlayerIds ?? [],
+    tournamentWinners: state.tournamentWinnerIds ?? [],
     eloResults,
     lastEventId: state.lastEvent?.id ?? null,
     eventIds: state.events?.map(event => event.id) ?? [],

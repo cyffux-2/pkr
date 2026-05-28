@@ -1,5 +1,5 @@
 .page {
-  min-height: 100vh;
+  min-height: var(--app-viewport-height);
   background:
     radial-gradient(circle at 14% 14%, rgba(168, 0, 12, 0.44), transparent 30%),
     radial-gradient(circle at 82% 15%, rgba(178, 95, 0, 0.24), transparent 26%),
@@ -8,7 +8,8 @@
     #030303;
   color: #fff;
   font-family: Inter, Arial, sans-serif;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .pageAutoSwitchRight {
@@ -44,8 +45,15 @@
 }
 
 .arena {
+  --table-half: min(40vw, 560px);
+  --table-width: calc(var(--table-half) + var(--table-half));
+  --controls-left: clamp(8px, 1vw, 16px);
+  --controls-width: min(47vw, 690px);
+  --hero-clearance-from-controls: clamp(200px, 14vw, 250px);
+  --hero-left: min(70%, max(50%, calc(var(--controls-left) + var(--controls-width) + var(--hero-clearance-from-controls))));
+  --seat-outside-offset: clamp(40px, 4.2vw, 68px);
   position: relative;
-  min-height: 100vh;
+  min-height: max(var(--app-viewport-height), 720px);
   overflow: hidden;
 }
 
@@ -129,7 +137,7 @@
   position: absolute;
   left: 50%;
   top: 47%;
-  width: min(88vw, 1264px);
+  width: var(--table-width);
   aspect-ratio: 1.67;
   transform: translate(-50%, -50%);
 }
@@ -178,6 +186,7 @@
 
 .heroCards {
   gap: clamp(8px, 1.1vw, 16px);
+  position: relative;
 }
 
 .opponentCards {
@@ -196,21 +205,21 @@
 }
 
 .boardCard {
-  width: clamp(46px, 6.7vw, 100px);
-  height: clamp(68px, 10vw, 150px);
-  font-size: clamp(20px, 2.8vw, 42px);
+  width: clamp(42px, 5.8vw, 90px);
+  height: clamp(62px, 8.7vw, 134px);
+  font-size: clamp(18px, 2.4vw, 38px);
 }
 
 .heroCard {
-  width: clamp(62px, 7.2vw, 104px);
-  height: clamp(92px, 10.8vw, 156px);
-  font-size: clamp(24px, 2.8vw, 40px);
+  width: clamp(56px, 6.4vw, 94px);
+  height: clamp(84px, 9.6vw, 140px);
+  font-size: clamp(22px, 2.4vw, 36px);
 }
 
 .smallCard {
-  width: clamp(30px, 3.4vw, 50px);
-  height: clamp(42px, 4.8vw, 70px);
-  font-size: clamp(13px, 1.4vw, 22px);
+  width: clamp(27px, 2.8vw, 42px);
+  height: clamp(38px, 4vw, 60px);
+  font-size: clamp(12px, 1.1vw, 18px);
 }
 
 .cardVisible {
@@ -222,6 +231,18 @@
 
 .redCard {
   color: #d11323;
+}
+
+.winningCard {
+  border-color: #ffea00;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.82), transparent 34%),
+    #fffbe6;
+  box-shadow:
+    0 0 0 3px rgba(255, 234, 0, 0.86),
+    0 0 24px rgba(255, 234, 0, 0.72),
+    0 12px 24px rgba(0, 0, 0, 0.32);
+  transform: translateY(-2px);
 }
 
 .cardBack {
@@ -256,8 +277,8 @@
   z-index: 5;
   display: grid;
   justify-items: center;
-  gap: clamp(3px, 0.7vw, 9px);
-  min-width: clamp(96px, 12vw, 172px);
+  gap: clamp(3px, 0.55vw, 7px);
+  min-width: clamp(86px, 9.8vw, 144px);
   color: #fff;
   text-align: center;
   transition: opacity 160ms ease, filter 160ms ease;
@@ -283,8 +304,8 @@
 }
 
 .avatar {
-  width: clamp(62px, 10vw, 145px);
-  height: clamp(62px, 10vw, 145px);
+  width: clamp(54px, 7.6vw, 116px);
+  height: clamp(54px, 7.6vw, 116px);
   display: grid;
   place-items: center;
   border-radius: 999px;
@@ -292,10 +313,10 @@
     radial-gradient(circle at 50% 32%, rgba(255, 255, 255, 0.28), transparent 18%),
     linear-gradient(145deg, #06ca75, #007444);
   box-shadow:
-    0 0 36px rgba(6, 202, 117, 0.44),
-    inset 0 -18px 36px rgba(0, 0, 0, 0.26);
+    0 0 24px rgba(6, 202, 117, 0.44),
+    inset 0 -12px 24px rgba(0, 0, 0, 0.26);
   color: rgba(0, 0, 0, 0.62);
-  font-size: clamp(26px, 4vw, 58px);
+  font-size: clamp(22px, 3vw, 44px);
   font-weight: 900;
 }
 
@@ -305,13 +326,13 @@
     radial-gradient(circle at 50% 32%, rgba(255, 255, 255, 0.22), transparent 18%),
     linear-gradient(145deg, #d80000, #7f0000);
   box-shadow:
-    0 0 34px rgba(216, 0, 0, 0.42),
-    inset 0 -18px 36px rgba(0, 0, 0, 0.26);
+    0 0 24px rgba(216, 0, 0, 0.42),
+    inset 0 -12px 24px rgba(0, 0, 0, 0.26);
 }
 
 .playerName,
 .playerStack {
-  font-size: clamp(19px, 2.8vw, 40px);
+  font-size: clamp(16px, 1.85vw, 30px);
   line-height: 1.05;
   text-shadow: 0 3px 12px rgba(0, 0, 0, 0.58);
 }
@@ -323,32 +344,90 @@
   white-space: nowrap;
 }
 
+.absentBadge {
+  width: min(100%, 112px);
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.46);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: clamp(11px, 1vw, 14px);
+  font-weight: 900;
+  line-height: 1.05;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.heroAbsentOverlay {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  z-index: 18;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: clamp(12px, 1.2vw, 16px);
+  font-weight: 900;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34);
+}
+
+.heroAbsentOverlay button {
+  height: 26px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 999px;
+  background: #ffea00;
+  color: #111;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: none;
+  transition: transform 80ms ease, filter 120ms ease;
+}
+
+.heroAbsentOverlay button:hover {
+  filter: brightness(0.88);
+}
+
+.heroAbsentOverlay button:active {
+  transform: scale(0.96);
+}
+
 .bet {
   position: absolute;
   z-index: 9;
-  min-width: clamp(48px, 5vw, 72px);
-  padding: 4px 9px;
+  min-width: clamp(44px, 4.3vw, 62px);
+  padding: 3px 8px;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.42);
   color: #fff;
-  font-size: clamp(15px, 1.45vw, 22px);
+  font-size: clamp(13px, 1.15vw, 18px);
   font-weight: 900;
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
 }
 
 .dealer {
   position: absolute;
-  top: clamp(42px, 7.2vw, 106px);
-  right: calc(50% - clamp(48px, 7.2vw, 102px));
-  width: clamp(28px, 4.5vw, 58px);
-  height: clamp(28px, 4.5vw, 58px);
+  top: clamp(34px, 5.4vw, 78px);
+  right: calc(50% - clamp(40px, 5.4vw, 80px));
+  width: clamp(24px, 3.5vw, 46px);
+  height: clamp(24px, 3.5vw, 46px);
   display: grid;
   place-items: center;
   z-index: 12;
   border-radius: 999px;
   background: #f3eee5;
   color: #181818;
-  font-size: clamp(14px, 2vw, 30px);
+  font-size: clamp(12px, 1.55vw, 24px);
   font-weight: 900;
   box-shadow:
     0 5px 13px rgba(0, 0, 0, 0.4),
@@ -356,7 +435,7 @@
 }
 
 .seatLeft {
-  left: 2vw;
+  left: calc(50% - var(--table-half) - var(--seat-outside-offset));
   top: 46%;
   transform: translateY(-50%);
 }
@@ -368,7 +447,7 @@
 
 .seatTopLeft {
   left: 29%;
-  top: 22%;
+  top: 20.5%;
   transform: translate(-50%, -50%);
 }
 
@@ -380,7 +459,7 @@
 
 .seatTop {
   left: 50%;
-  top: 19%;
+  top: 17.5%;
   transform: translate(-50%, -50%);
 }
 
@@ -392,7 +471,7 @@
 
 .seatTopRight {
   left: 71%;
-  top: 22%;
+  top: 20.5%;
   transform: translate(-50%, -50%);
 }
 
@@ -403,7 +482,7 @@
 }
 
 .seatRight {
-  right: 2vw;
+  right: calc(50% - var(--table-half) - var(--seat-outside-offset));
   top: 46%;
   transform: translateY(-50%);
 }
@@ -422,29 +501,48 @@
 
 .seatBottom {
   left: 52%;
-  bottom: 2%;
+  bottom: 0.8%;
   transform: translateX(-50%);
 }
 
 .heroPlayer {
-  left: 58%;
-  bottom: 2vh;
+  left: var(--hero-left);
+  bottom: clamp(8px, 1.3vh, 18px);
+  gap: clamp(3px, 0.7vw, 9px);
   grid-template-columns: auto auto;
   align-items: center;
+  min-width: clamp(96px, 12vw, 172px);
   text-align: left;
   transform: translateX(-50%);
+}
+
+.heroPlayer .heroCard {
+  width: clamp(62px, 7.2vw, 104px);
+  height: clamp(92px, 10.8vw, 156px);
+  font-size: clamp(24px, 2.8vw, 40px);
+}
+
+.heroPlayer .playerName,
+.heroPlayer .playerStack {
+  font-size: clamp(19px, 2.8vw, 40px);
+}
+
+.heroPlayer .bet {
+  min-width: clamp(48px, 5vw, 72px);
+  padding: 4px 9px;
+  font-size: clamp(15px, 1.45vw, 22px);
 }
 
 .heroDealer {
   top: auto;
   right: auto;
-  left: calc(58% - clamp(78px, 8vw, 126px));
-  bottom: calc(2vh + clamp(102px, 9vw, 146px));
+  left: calc(var(--hero-left) - clamp(58px, 6vw, 96px));
+  bottom: calc(clamp(8px, 1.3vh, 18px) + clamp(78px, 7vw, 112px));
 }
 
 .heroInfo {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .eliminationNotice {
@@ -514,11 +612,17 @@
 }
 
 .controls {
+  --action-gap: clamp(8px, 2.2vw, 34px);
+  --action-slot-width: clamp(86px, 8.4vw, 120px);
+  --action-controls-width: calc(
+    var(--action-slot-width) + var(--action-slot-width) + var(--action-slot-width) + var(--action-slot-width) +
+    var(--action-gap) + var(--action-gap) + var(--action-gap)
+  );
   position: absolute;
-  left: clamp(8px, 1vw, 16px);
+  left: var(--controls-left);
   bottom: clamp(8px, 1.2vw, 18px);
   z-index: 10;
-  width: min(47vw, 690px);
+  width: var(--controls-width);
 }
 
 .actionTimer {
@@ -527,11 +631,13 @@
   display: grid;
   gap: 7px;
   margin-bottom: 10px;
+  grid-template-columns: max-content max-content;
+  align-items: center;
 }
 
 .actionTimer span {
   width: max-content;
-  min-width: 58px;
+  min-width: 94px;
   padding: 5px 10px;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.58);
@@ -540,7 +646,29 @@
   font-weight: 900;
 }
 
+.actionTimerBank span {
+  background: rgba(122, 28, 10, 0.88);
+  color: #fff4ec;
+}
+
+.actionTimer small {
+  width: max-content;
+  min-width: 84px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.42);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.actionTimerBank small {
+  background: rgba(0, 0, 0, 0.54);
+  color: rgba(255, 255, 255, 0.72);
+}
+
 .actionTimer div {
+  grid-column: 1 / -1;
   height: 8px;
   overflow: hidden;
   border-radius: 999px;
@@ -557,21 +685,29 @@
   transition: width 220ms linear;
 }
 
-.presetRow,
+.actionTimerBank div::before {
+  background: #ff5f2e;
+}
+
 .actionRow {
   display: flex;
   align-items: center;
+  width: var(--action-controls-width);
+  max-width: 100%;
 }
 
 .presetRow {
-  flex-wrap: wrap;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(var(--preset-count, 3), minmax(0, 1fr));
   gap: 5px;
+  align-items: center;
+  width: var(--action-controls-width);
+  max-width: 100%;
   margin-bottom: 13px;
 }
 
 .actionRow {
-  gap: clamp(8px, 2.2vw, 34px);
+  gap: var(--action-gap);
 }
 
 .amountAction {
@@ -611,7 +747,8 @@
 
 .presetBtn {
   --button-bg: rgba(255, 157, 0, 0.8);
-  min-width: clamp(46px, 6.2vw, 90px);
+  width: 100%;
+  min-width: 0;
   height: clamp(26px, 2.5vw, 34px);
   padding: 0 10px;
   border-radius: 999px;
@@ -620,7 +757,9 @@
 
 .allInPresetBtn {
   --button-bg: rgba(255, 73, 73, 0.86);
-  min-width: clamp(58px, 7vw, 104px);
+  padding: 0 6px;
+  font-size: clamp(11px, 1.05vw, 16px);
+  white-space: nowrap;
 }
 
 .actionBtn {
@@ -793,12 +932,12 @@
   }
 
   .arena {
+    --table-half: 48vw;
     min-height: 720px;
   }
 
   .table {
     top: 38%;
-    width: 108vw;
   }
 
   .seatTopLeft,
@@ -807,7 +946,7 @@
   }
 
   .seatTop {
-    top: 16%;
+    top: 14.5%;
   }
 
   .seatLeft,
@@ -821,8 +960,8 @@
   }
 
   .heroDealer {
-    left: calc(57% - clamp(74px, 12vw, 112px));
-    bottom: calc(142px + clamp(92px, 14vw, 128px));
+    left: calc(57% - clamp(54px, 9vw, 88px));
+    bottom: calc(142px + clamp(72px, 11vw, 100px));
   }
 
   .controls {
@@ -853,12 +992,12 @@
 
 @media (max-width: 560px) {
   .arena {
+    --table-half: 56vw;
     min-height: 760px;
   }
 
   .table {
     top: 34%;
-    width: 128vw;
   }
 
   .seatLeft,
@@ -867,11 +1006,11 @@
   }
 
   .seatLeft {
-    left: -8px;
+    left: -18px;
   }
 
   .seatRight {
-    right: -8px;
+    right: -18px;
   }
 
   .heroPlayer {
@@ -882,15 +1021,17 @@
   }
 
   .heroDealer {
-    left: calc(50% - 82px);
-    bottom: 292px;
+    left: calc(50% - 62px);
+    bottom: 270px;
   }
 
   .presetRow {
-    flex-wrap: wrap;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
   }
 
   .actionRow {
+    width: 100%;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

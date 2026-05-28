@@ -12,7 +12,15 @@ import {
   type ActiveTableEntry,
 } from '../lib/activeTablesRegistry';
 import { TournamentTableTab } from '../components/TournamentTableTab';
+import { ProfilePopup } from './ProfilModule/ProfilePopup';
 import styles from './Tournaments.module.css';
+
+interface Profile {
+  username: string;
+  tag: string;
+  elo: number;
+  avatar_url: string | null;
+}
 
 interface TournamentRow {
   id: number;
@@ -32,6 +40,26 @@ interface PokerTableRow {
   players: unknown;
 }
 
+type TournamentPageMode = 'tournament' | 'sng';
+
+interface PageConfig {
+  dataName: string;
+  tableLabel: string;
+  emptyText: string;
+  loadingText: string;
+  loadErrorText: string;
+  alreadyJoinedText: string;
+  fullText: string;
+  joinErrorText: string;
+  joinedText: string;
+  searchingTableText: string;
+  registeredTablePendingText: string;
+  noTableText: string;
+  rowKind: 'tournament' | 'sng';
+  filter: (tournament: TournamentRow) => boolean;
+  pageClassName?: string;
+}
+
 function getPlayerIdsFromTableRows(tableRows: PokerTableRow[], tournamentId: number) {
   return tableRows
     .filter(row => row.tournament === tournamentId)
@@ -39,12 +67,68 @@ function getPlayerIdsFromTableRows(tableRows: PokerTableRow[], tournamentId: num
     .filter((playerId): playerId is string => typeof playerId === 'string');
 }
 
-const GAME_MODES = [
-  { label: 'Tournoi', path: '/tournaments', active: true },
-  { label: 'Sit&GO', path: '/lobby?mode=sitgo' },
-  { label: 'Triple', path: '/lobby?mode=triple' },
-  { label: 'HeadUp', path: '/lobby?mode=headup' },
-];
+function isTrioTournamentName(name: string) {
+  return /^triple\s+(normal|turbo)$/i.test(name.trim());
+}
+
+function isTrioTournament(tournament: Pick<TournamentRow, 'tournament_name' | 'max_players'>) {
+  return tournament.max_players === 3 && isTrioTournamentName(tournament.tournament_name);
+}
+
+function isHeadupTournamentName(name: string) {
+  return /^headup\s+(normal|turbo)$/i.test(name.trim());
+}
+
+function isHeadupTournament(tournament: Pick<TournamentRow, 'tournament_name' | 'max_players'>) {
+  return tournament.max_players === 2 && isHeadupTournamentName(tournament.tournament_name);
+}
+
+const PAGE_CONFIG: Record<TournamentPageMode, PageConfig> = {
+  tournament: {
+    dataName: 'Main Page - tournoi',
+    tableLabel: 'Tournois disponibles',
+    emptyText: 'Aucun tournoi disponible pour le moment.',
+    loadingText: 'Chargement des tournois...',
+    loadErrorText: 'Impossible de charger les tournois.',
+    alreadyJoinedText: 'Tu es déjà inscrit à ce tournoi.',
+    fullText: 'Ce tournoi est complet.',
+    joinErrorText: 'Impossible de rejoindre ce tournoi.',
+    joinedText: 'Inscription au tournoi confirmée.',
+    searchingTableText: 'Inscription confirmée, recherche de ta table...',
+    registeredTablePendingText: 'Inscription confirmée. Ta table sera disponible bientôt.',
+    noTableText: 'Aucune table disponible pour ce tournoi.',
+    rowKind: 'tournament',
+    filter: tournament => tournament.max_players > 8,
+  },
+  sng: {
+    dataName: 'Main Page - sng',
+    tableLabel: 'Sit&GO disponibles',
+    emptyText: 'Aucun Sit&GO disponible pour le moment.',
+    loadingText: 'Chargement des Sit&GO...',
+    loadErrorText: 'Impossible de charger les Sit&GO.',
+    alreadyJoinedText: 'Tu es déjà inscrit à ce Sit&GO.',
+    fullText: 'Ce Sit&GO est complet.',
+    joinErrorText: 'Impossible de rejoindre ce Sit&GO.',
+    joinedText: 'Inscription au Sit&GO confirmée.',
+    searchingTableText: 'Inscription confirmée, recherche de ta table...',
+    registeredTablePendingText: 'Inscription confirmée. Ta table sera disponible bientôt.',
+    noTableText: 'Aucune table disponible pour ce Sit&GO.',
+    rowKind: 'sng',
+    filter: tournament => tournament.max_players <= 8 && !isTrioTournament(tournament) && !isHeadupTournament(tournament),
+    pageClassName: styles.pageSng,
+  },
+};
+
+const ROW_LIMIT = 10;
+
+function getGameModes(activeMode: TournamentPageMode) {
+  return [
+    { label: 'Tournoi', path: '/tournaments', active: activeMode === 'tournament' },
+    { label: 'Sit&GO', path: '/sng', active: activeMode === 'sng' },
+    { label: 'Triple', path: '/trio' },
+    { label: 'HeadUp', path: '/headup' },
+  ];
+}
 
 function formatHour(value: string) {
   return new Intl.DateTimeFormat('fr-FR', {
@@ -61,19 +145,46 @@ function formatEstimatedEnd(tournament: TournamentRow) {
   return formatHour(end.toISOString());
 }
 
-function statusClass(tournament: TournamentRow) {
+function formatSngDuration(tournament: TournamentRow) {
+  const estimatedMinutes = Math.max(tournament.time_per_level, 1) * 12;
+
+  if (estimatedMinutes < 60) {
+    return `0h${String(Math.round(estimatedMinutes)).padStart(2, '0')}`;
+  }
+
+  const roundedHalfHour = Math.round(estimatedMinutes / 30) * 30;
+  const hours = Math.floor(roundedHalfHour / 60);
+  const minutes = roundedHalfHour % 60;
+  return minutes === 0 ? `${hours}h` : `${hours}h${String(minutes).padStart(2, '0')}`;
+}
+
+function formatSngStructure(tournament: TournamentRow) {
+  const maxPlayers = Math.max(tournament.max_players, 2);
+  const turbo = tournament.time_per_level <= 3;
+  return `${maxPlayers} Max${turbo ? ' - turbo' : ''}`;
+}
+
+function formatSngName(tournament: TournamentRow) {
+  const rawName = tournament.tournament_name.trim();
+  if (rawName && !/^test$/i.test(rawName)) return rawName;
+  return formatSngStructure(tournament);
+}
+
+function statusClass(tournament: TournamentRow, rowKind: PageConfig['rowKind']) {
   const start = new Date(tournament.start_date).getTime();
   const now = Date.now();
   const filled = tournament.players.length >= tournament.max_players;
 
   if (filled) return styles.statusUnavailable;
+  if (rowKind === 'sng') return styles.statusFuture;
   if (start <= now) return styles.statusJoinable;
   return styles.statusFuture;
 }
 
-export default function Tournaments() {
+export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: TournamentPageMode }) {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const config = PAGE_CONFIG[mode];
   const [tournaments, setTournaments] = useState<TournamentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState('');
@@ -83,6 +194,8 @@ export default function Tournaments() {
   const [alivePlayersByTournament, setAlivePlayersByTournament] = useState<Record<number, number>>({});
   const [dismissedEliminations, setDismissedEliminations] = useState<Set<number>>(new Set());
   const [cachedActiveTables, setCachedActiveTables] = useState<ActiveTableEntry[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [openProfile, setOpenProfile] = useState(false);
 
   const activeTournaments = useMemo(
     () => mergeActiveTournamentTabs(
@@ -100,6 +213,10 @@ export default function Tournaments() {
 
   const formatPlayersCount = (tournament: TournamentRow) => {
     const registeredPlayers = tournament.players.length;
+    if (config.rowKind === 'sng') {
+      return `${registeredPlayers}/${tournament.max_players}`;
+    }
+
     const rawAlivePlayers = typeof tournament.alive_players_count === 'number'
       ? tournament.alive_players_count
       : alivePlayersByTournament[tournament.id] ?? registeredPlayers;
@@ -116,11 +233,13 @@ export default function Tournaments() {
       if (cancelled) return;
 
       if (error || data?.error) {
-        setFeedback('Impossible de charger les tournois.');
+        setFeedback(config.loadErrorText);
         setTournaments([]);
         setAlivePlayersByTournament({});
       } else {
-        const nextTournaments = ((data?.tournaments ?? []) as TournamentRow[]).slice(0, 10);
+        const nextTournaments = ((data?.tournaments ?? []) as TournamentRow[])
+          .filter(config.filter)
+          .slice(0, ROW_LIMIT);
         setTournaments(nextTournaments);
 
         const tournamentIds = nextTournaments.map(tournament => tournament.id);
@@ -157,7 +276,7 @@ export default function Tournaments() {
     const refreshInterval = window.setInterval(fetchTournaments, 5000);
 
     const channel = supabase
-      .channel('main-page-tournoi')
+      .channel(`main-page-${mode}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tournaments' },
@@ -175,14 +294,25 @@ export default function Tournaments() {
       window.clearInterval(refreshInterval);
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [config, mode]);
 
   useEffect(() => {
     if (!user) {
       setDismissedEliminations(new Set());
       setCachedActiveTables([]);
+      setProfile(null);
+      setOpenProfile(false);
       return;
     }
+
+    supabase
+      .from('profiles')
+      .select('username, tag, elo, avatar_url')
+      .eq('user_id', user.id)
+      .single()
+      .then(({ data, error }) => {
+        if (!error) setProfile(data as Profile);
+      });
 
     const unwatchDismissed = watchDismissedEliminatedTables(user.id, setDismissedEliminations);
     const unwatchActiveTables = watchActiveTablesForUser(user.id, setCachedActiveTables);
@@ -256,12 +386,12 @@ export default function Tournaments() {
     }
 
     if (tournament.players.includes(user.id)) {
-      setFeedback('Tu es déjà inscrit à ce tournoi.');
+      setFeedback(config.alreadyJoinedText);
       return;
     }
 
     if (tournament.players.length >= tournament.max_players) {
-      setFeedback('Ce tournoi est complet.');
+      setFeedback(config.fullText);
       return;
     }
 
@@ -277,28 +407,28 @@ export default function Tournaments() {
     });
 
     if (error || data?.error) {
-      setFeedback('Impossible de rejoindre ce tournoi.');
+      setFeedback(config.joinErrorText);
       return;
     }
 
     const updatedTournament = data?.tournament as TournamentRow | undefined;
     if (!updatedTournament) {
-      setFeedback('Impossible de rejoindre ce tournoi.');
+      setFeedback(config.joinErrorText);
       return;
     }
 
-    setFeedback('Inscription au tournoi confirmée.');
+    setFeedback(config.joinedText);
     setTournaments(current =>
       current.map(item => item.id === tournament.id ? updatedTournament : item)
     );
 
-    setFeedback('Inscription confirmée, recherche de ta table...');
+    setFeedback(config.searchingTableText);
     const tableId = await requestTournamentTable(updatedTournament.id);
     if (tableId) {
       void ensureTableStateCache(tableId);
-      navigate(`/game/${tableId}`, { state: { tournamentId: updatedTournament.id } });
+      navigate(`/game/${tableId}`, { state: { tournamentId: updatedTournament.id, returnTo: mode === 'sng' ? '/sng' : '/tournaments' } });
     } else {
-      setFeedback('Inscription confirmée. Ta table sera disponible bientôt.');
+      setFeedback(config.registeredTablePendingText);
     }
   };
 
@@ -319,24 +449,24 @@ export default function Tournaments() {
     const tableId = knownTableId ?? await requestTournamentTable(tournament.id);
 
     if (!tableId) {
-      setFeedback('Aucune table disponible pour ce tournoi.');
+      setFeedback(config.noTableText);
       return;
     }
 
     setFeedback('');
     void ensureTableStateCache(tableId);
-    navigate(`/game/${tableId}`, { state: { tournamentId: tournament.id } });
+    navigate(`/game/${tableId}`, { state: { tournamentId: tournament.id, returnTo: mode === 'sng' ? '/sng' : '/tournaments' } });
   };
 
   return (
-    <div className={styles.page} data-name="Main Page - tournoi">
+    <div className={`${styles.page} ${config.pageClassName ?? ''}`} data-name={config.dataName}>
       <aside className={styles.sidebar}>
         <button className={styles.logoWrap} onClick={() => navigate('/home')} aria-label="Accueil">
           <img src={publicAsset('/figma/main-page-nothing/pkr-logo-black-bg.png')} alt="PKR" className={styles.logoImg} />
         </button>
 
         <nav className={styles.modeList}>
-          {GAME_MODES.map(({ label, path, active }) => (
+          {getGameModes(mode).map(({ label, path, active }) => (
             <button
               key={label}
               className={`${styles.modeBtn} ${active ? styles.modeBtnActive : ''}`}
@@ -352,7 +482,7 @@ export default function Tournaments() {
           <button className={styles.iconBtn} onClick={() => navigate('/settings')} title="Paramètres">
             <img src={publicAsset('/figma/main-page-nothing/settings-icon.svg')} alt="" className={styles.iconImg} />
           </button>
-          <button className={styles.iconBtn} onClick={() => navigate('/settings')} title="Profil">
+          <button className={styles.iconBtn} onClick={() => setOpenProfile(true)} title="Profil">
             <img src={publicAsset('/figma/main-page-nothing/profile-icon.svg')} alt="" className={styles.iconImg} />
           </button>
         </div>
@@ -362,41 +492,66 @@ export default function Tournaments() {
         <section className={styles.panel}>
           {feedback && <div className={styles.feedback}>{feedback}</div>}
 
-          <div className={styles.table} role="table" aria-label="Tournois disponibles">
+          <div
+            className={`${styles.table} ${config.rowKind === 'sng' ? styles.sngTable : ''}`}
+            role="table"
+            aria-label={config.tableLabel}
+          >
             <div className={`${styles.row} ${styles.header}`} role="row">
-              <div>Tournoi</div>
-              <div>Début</div>
-              <div>Fin estimée</div>
-              <div>Joueurs</div>
-              <div>Structure</div>
-              <div />
+              {config.rowKind === 'sng' ? (
+                <>
+                  <div>Tournoi</div>
+                  <div>Durée</div>
+                  <div>Joueurs</div>
+                  <div>Structure</div>
+                  <div />
+                </>
+              ) : (
+                <>
+                  <div>Tournoi</div>
+                  <div>Début</div>
+                  <div>Fin estimée</div>
+                  <div>Joueurs</div>
+                  <div>Structure</div>
+                  <div />
+                </>
+              )}
             </div>
 
             {loading && (
-              <div className={styles.empty}>Chargement des tournois...</div>
+              <div className={styles.empty}>{config.loadingText}</div>
             )}
 
             {!loading && tournaments.length === 0 && (
-              <div className={styles.empty}>Aucun tournoi disponible pour le moment.</div>
+              <div className={styles.empty}>{config.emptyText}</div>
             )}
 
             {!loading && tournaments.map((tournament, index) => {
               const joined = Boolean(user && tournament.players.includes(user.id));
               const full = tournament.players.length >= tournament.max_players;
+              const structureLabel = config.rowKind === 'sng'
+                ? formatSngStructure(tournament)
+                : `${tournament.time_per_level} min/niveau${tournament.ranked ? ' - Classé' : ''}`;
 
               return (
                 <div className={styles.row} role="row" key={tournament.id}>
-                  <span className={`${styles.status} ${statusClass(tournament)}`} />
+                  <span className={`${styles.status} ${statusClass(tournament, config.rowKind)}`} />
                   <div className={styles.nameCell}>
                     <span>#{String(index + 1).padStart(2, '0')}</span>
-                    <strong>{tournament.tournament_name}</strong>
+                    <strong>{config.rowKind === 'sng' ? formatSngName(tournament) : tournament.tournament_name}</strong>
                   </div>
-                  <div>{formatHour(tournament.start_date)}</div>
-                  <div className={styles.muted}>{formatEstimatedEnd(tournament)}</div>
+                  {config.rowKind === 'sng' ? (
+                    <div>{formatSngDuration(tournament)}</div>
+                  ) : (
+                    <>
+                      <div>{formatHour(tournament.start_date)}</div>
+                      <div className={styles.muted}>{formatEstimatedEnd(tournament)}</div>
+                    </>
+                  )}
                   <div>{formatPlayersCount(tournament)}</div>
                   <div>
                     <span className={styles.structure}>
-                      {tournament.time_per_level} min/niveau{tournament.ranked ? ' - Classé' : ''}
+                      {structureLabel}
                     </span>
                   </div>
                   <button
@@ -431,8 +586,19 @@ export default function Tournaments() {
           </div>
         )}
       </main>
+
+      {openProfile && (
+        <ProfilePopup
+          profile={profile}
+          onClose={() => setOpenProfile(false)}
+        />
+      )}
     </div>
   );
+}
+
+export default function Tournaments() {
+  return <TournamentSelectionPage mode="tournament" />;
 }
 
 function mergeActiveTournamentTabs(

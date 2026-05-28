@@ -1,9 +1,17 @@
 import { type CSSProperties, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { ensureTournamentTableConnection, getCachedTournamentTable } from '../lib/tournamentConnections';
-import { ensureTableStateCache, getCachedTableState, watchCachedTableState, type TableState } from '../lib/tableStateCache';
+import {
+  ensureTableStateCache,
+  getCachedTableState,
+  refreshTableStateConnection,
+  sendTablePlayerReturn,
+  watchCachedTableState,
+  type TableState,
+} from '../lib/tableStateCache';
+import { refreshPrivateCards } from '../lib/privateCardsCache';
 import { watchDismissedEliminatedTables } from '../lib/eliminatedTournamentDismissals';
 import { buildBlindLevels, getLevelIndexFromPublishedBlinds } from '../lib/tournamentLevels';
 import { formatWireCard, isRedWireCard } from '../lib/cardDisplay';
@@ -83,9 +91,14 @@ function getCurrentLevelIndex(tournament: TournamentRow | null, now: number) {
 
 export default function TournamentLobby() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { tournamentId } = useParams();
   const { user } = useAuth();
   const numericTournamentId = Number(tournamentId);
+  const routeState = location.state as { returnTo?: string } | null;
+  const returnTo = routeState?.returnTo === '/trio' || routeState?.returnTo === '/headup' || routeState?.returnTo === '/sng' || routeState?.returnTo === '/tournaments'
+    ? routeState.returnTo
+    : '/tournaments';
 
   const [tournament, setTournament] = useState<TournamentRow | null>(null);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
@@ -233,9 +246,11 @@ export default function TournamentLobby() {
     const setup = async () => {
       const cached = getCachedTournamentTable(tournament.id, user.id);
       if (cached) {
+        const cachedState = getCachedTableState(cached);
         setTableId(cached);
-        setTableState(getCachedTableState(cached));
+        setTableState(cachedState);
         void ensureTableStateCache(cached);
+        refreshPrivateCards(cached, user.id, cachedState);
         return;
       }
 
@@ -249,9 +264,11 @@ export default function TournamentLobby() {
         onAssigned: setTableId,
       });
       if (assigned) {
+        const assignedState = getCachedTableState(assigned);
         setTableId(assigned);
-        setTableState(getCachedTableState(assigned));
+        setTableState(assignedState);
         void ensureTableStateCache(assigned);
+        refreshPrivateCards(assigned, user.id, assignedState);
       }
     };
 
@@ -274,8 +291,11 @@ export default function TournamentLobby() {
 
     const cached = tableId ?? getCachedTournamentTable(tournament.id, user.id);
     if (cached) {
-      void ensureTableStateCache(cached);
-      navigate(`/game/${cached}`, { state: { tournamentId: tournament.id } });
+      const cachedState = getCachedTableState(cached);
+      void refreshTableStateConnection(cached, true);
+      refreshPrivateCards(cached, user.id, cachedState);
+      void sendTablePlayerReturn(cached, user.id);
+      navigate(`/game/${cached}`, { state: { tournamentId: tournament.id, returnTo } });
       return;
     }
 
@@ -294,8 +314,11 @@ export default function TournamentLobby() {
     });
 
     if (assigned) {
-      void ensureTableStateCache(assigned);
-      navigate(`/game/${assigned}`, { state: { tournamentId: tournament.id } });
+      const assignedState = getCachedTableState(assigned);
+      void refreshTableStateConnection(assigned, true);
+      refreshPrivateCards(assigned, user.id, assignedState);
+      void sendTablePlayerReturn(assigned, user.id);
+      navigate(`/game/${assigned}`, { state: { tournamentId: tournament.id, returnTo } });
     } else {
       setFeedback('Table encore indisponible.');
     }

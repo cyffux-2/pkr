@@ -1,12 +1,13 @@
 .page {
   --sidebar-width: 322px;
-  --bottom-bar-height: 132px;
+  --bottom-bar-height: 112px;
 
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  min-height: var(--app-viewport-height);
   min-width: 320px;
   display: flex;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   position: relative;
   background:
     radial-gradient(circle at 5% 5%, rgba(0, 117, 255, 0.42) 0, transparent 30%),
@@ -20,7 +21,7 @@
 .sidebar {
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
-  height: 100vh;
+  min-height: var(--app-viewport-height);
   background: #060607;
   display: flex;
   flex-direction: column;
@@ -90,12 +91,14 @@
 }
 
 .playIcon {
-  width: 0;
-  height: 0;
-  flex: 0 0 auto;
-  border-top: 24px solid transparent;
-  border-bottom: 24px solid transparent;
-  border-left: 36px solid rgba(255, 255, 255, 0.82);
+  width: 66px;
+  height: 66px;
+  flex: 0 0 66px;
+  background-image: url('../assets/figma/main-page-nothing/polygon-light.svg');
+  background-repeat: no-repeat;
+  background-size: 57px 50px;
+  background-position: center;
+  transform: rotate(90deg);
 }
 
 .bottomIcons {
@@ -141,7 +144,7 @@
 
 .panel {
   position: relative;
-  width: min(1018px, calc(100vw - var(--sidebar-width) - 92px));
+  width: min(1018px, 100%);
   min-height: 790px;
   padding: 60px 19px 140px;
   border: 1px solid rgba(31, 173, 255, 0.2);
@@ -308,24 +311,27 @@
 }
 
 .bottomBar {
-  position: absolute;
+  position: fixed;
   right: 0;
   bottom: 0;
-  left: 0;
+  left: var(--sidebar-width);
+  z-index: 20;
   height: var(--bottom-bar-height);
   display: flex;
   justify-content: center;
-  align-items: flex-start;
-  padding-top: 18px;
+  align-items: center;
+  padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
   background: #000;
+  overflow: visible;
 }
 
 .tournamentTabs {
-  max-width: calc(100vw - var(--sidebar-width) - 32px);
+  max-width: calc(100% - 32px);
   display: flex;
   gap: 12px;
   overflow-x: auto;
-  padding: 18px 16px 24px;
+  overflow-y: visible;
+  padding: 12px 16px;
 }
 
 .cardsTab {
@@ -455,9 +461,10 @@
   }
 
   .playIcon {
-    border-top-width: 18px;
-    border-bottom-width: 18px;
-    border-left-width: 27px;
+    width: 48px;
+    height: 48px;
+    flex-basis: 48px;
+    background-size: 42px 36px;
   }
 
   .iconBtn {
@@ -513,7 +520,7 @@
 @media (max-width: 760px) {
   .page {
     --sidebar-width: 216px;
-    --bottom-bar-height: 124px;
+    --bottom-bar-height: 112px;
   }
 
   .sidebar {
@@ -530,7 +537,7 @@
   }
 
   .panel {
-    width: calc(100vw - var(--sidebar-width) - 24px);
+    width: 100%;
   }
 
   .row,
@@ -559,5 +566,449 @@
     height: 26px;
     font-size: 11px;
     padding: 0 5px;
+  }
+}
+
+.pageSng {
+  background:
+    radial-gradient(circle at 3% 5%, rgba(160, 49, 255, 0.48) 0, transparent 32%),
+    radial-gradient(circle at 59% 34%, rgba(225, 0, 255, 0.28) 0, transparent 34%),
+    radial-gradient(circle at 93% 88%, rgba(87, 20, 214, 0.54) 0, transparent 38%),
+    #050308;
+}
+
+.pageSng .panel {
+  min-height: 790px;
+  padding: 60px 19px 140px;
+  border-color: rgba(184, 51, 255, 0.22);
+  background: rgba(14, 7, 27, 0.56);
+}
+
+.pageSng .feedback,
+.pageSng .empty {
+  color: rgba(247, 235, 255, 0.86);
+}
+
+.pageSng .modeBtnActive {
+  border-color: rgba(255, 0, 0, 0.5);
+}
+
+.pageSng .row {
+  border-color: rgba(184, 92, 255, 0.24);
+  background: rgba(148, 51, 255, 0.22);
+  color: rgba(247, 235, 255, 0.86);
+}
+
+.pageSng .row:nth-child(odd):not(.header) {
+  background: rgba(148, 51, 255, 0.1);
+}
+
+.pageSng .header {
+  background: rgba(27, 9, 52, 0.84);
+  color: rgba(247, 235, 255, 0.92);
+}
+
+.pageSng .statusJoinable {
+  background: rgba(182, 82, 255, 0.95);
+}
+
+.pageSng .nameCell span {
+  color: rgba(247, 235, 255, 0.92);
+}
+
+.pageSng .structure {
+  border-color: rgba(184, 92, 255, 0.24);
+  background: rgba(148, 51, 255, 0.13);
+  color: rgba(247, 235, 255, 0.92);
+}
+
+.pageSng .joinBtn {
+  border-color: rgba(184, 92, 255, 0.24);
+  background: rgba(69, 0, 175, 0.92);
+  box-shadow: 0 7px 15px rgba(78, 22, 170, 0.28);
+}
+
+.pageSng .joinBtn:hover:not(:disabled) {
+  background: rgba(50, 0, 130, 0.98);
+}
+
+.sngTable {
+  width: min(911px, 100%);
+}
+
+.sngTable .row {
+  grid-template-columns: 7px minmax(112px, 1fr) minmax(74px, 0.72fr) minmax(82px, 0.74fr) minmax(138px, 1.32fr) clamp(78px, 9vw, 110px);
+  column-gap: clamp(18px, 2.4vw, 35px);
+  min-height: 54px;
+  padding: 0 12px 0 22px;
+  border-radius: 18px;
+  font-size: 20px;
+}
+
+.sngTable .header {
+  grid-template-columns: minmax(112px, 1fr) minmax(74px, 0.72fr) minmax(82px, 0.74fr) minmax(138px, 1.32fr) clamp(78px, 9vw, 110px);
+  padding-left: 48px;
+  font-size: 16px;
+}
+
+.sngTable .structure {
+  width: min(228px, 100%);
+  font-size: 16px;
+}
+
+.sngTable .joinBtn {
+  height: 35px;
+  border-radius: 13px;
+  font-size: 14px;
+}
+
+@media (max-width: 1160px) {
+  .sngTable .row {
+    grid-template-columns: 7px minmax(84px, 1fr) minmax(52px, 0.64fr) minmax(56px, 0.62fr) minmax(86px, 0.9fr) minmax(66px, 78px);
+    column-gap: 8px;
+    font-size: 15px;
+  }
+
+  .sngTable .header {
+    grid-template-columns: minmax(84px, 1fr) minmax(52px, 0.64fr) minmax(56px, 0.62fr) minmax(86px, 0.9fr) minmax(66px, 78px);
+    padding-left: 38px;
+    font-size: 12px;
+  }
+
+  .sngTable .structure {
+    font-size: 13px;
+  }
+}
+
+@media (max-height: 920px) {
+  .pageSng .panel {
+    min-height: 620px;
+  }
+}
+
+@media (max-width: 760px) {
+  .sngTable .row {
+    grid-template-columns: 7px minmax(66px, 1fr) minmax(42px, 0.54fr) minmax(42px, 0.54fr) minmax(64px, 0.74fr) minmax(56px, 66px);
+    column-gap: 6px;
+    padding-right: 8px;
+    padding-left: 10px;
+    font-size: 12px;
+  }
+
+  .sngTable .header {
+    grid-template-columns: minmax(66px, 1fr) minmax(42px, 0.54fr) minmax(42px, 0.54fr) minmax(64px, 0.74fr) minmax(56px, 66px);
+    padding-left: 24px;
+    font-size: 10px;
+  }
+
+  .sngTable .structure {
+    font-size: 10px;
+  }
+}
+
+.pageTrio {
+  background:
+    radial-gradient(circle at 18% 5%, rgba(255, 229, 0, 0.38) 0, transparent 34%),
+    radial-gradient(circle at 58% 34%, rgba(255, 183, 0, 0.18) 0, transparent 36%),
+    radial-gradient(circle at 92% 88%, rgba(255, 213, 0, 0.5) 0, transparent 38%),
+    #050503;
+}
+
+.pageTrio .modeBtnActive {
+  border-color: rgba(255, 0, 0, 0.5);
+}
+
+.trioPanel {
+  position: relative;
+  width: min(1018px, 100%);
+  min-height: 790px;
+  border: 1px solid rgba(255, 209, 20, 0.28);
+  border-radius: 44px;
+  background: rgba(31, 20, 5, 0.58);
+  box-shadow: 0 24px 54px rgba(0, 0, 0, 0.34);
+  overflow: hidden;
+}
+
+.trioPanel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 48% 28%, rgba(255, 229, 0, 0.12) 0, transparent 26%),
+    radial-gradient(circle at 88% 74%, rgba(255, 183, 0, 0.2) 0, transparent 24%);
+  pointer-events: none;
+}
+
+.trioChoices {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(120px, 14vh, 150px);
+  padding-top: clamp(112px, 19vh, 190px);
+}
+
+.trioChoiceBtn {
+  width: min(300px, 62%);
+  height: 120px;
+  border: 1.5px solid rgba(255, 209, 20, 0.55);
+  border-radius: 22px;
+  background: rgba(31, 20, 5, 0.92);
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 28px;
+  font-weight: 800;
+  cursor: pointer;
+  filter: drop-shadow(0 10px 11px rgba(0, 0, 0, 0.34));
+  transition: transform 80ms ease, background 100ms ease, border-color 100ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.trioChoiceBtn:hover {
+  background: rgba(46, 30, 8, 0.96);
+  transform: translateY(-1px);
+}
+
+.trioChoiceBtn:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.trioChoiceBtn:disabled:hover {
+  background: rgba(31, 20, 5, 0.92);
+  transform: none;
+}
+
+.trioChoiceBtn:active,
+.trioChoiceBtnSelected {
+  animation: softBoing 180ms ease-out;
+}
+
+.trioChoiceBtnTurbo {
+  border-color: rgba(255, 140, 5, 0.55);
+}
+
+.trioTriangle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 310px;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  clip-path: polygon(50% 6%, 98% 92%, 2% 92%);
+  border: 1px solid rgba(255, 229, 0, 0.55);
+}
+
+.trioTriangle::before,
+.trioTriangle span {
+  content: "";
+  position: absolute;
+  clip-path: polygon(50% 6%, 98% 92%, 2% 92%);
+}
+
+.trioTriangle::before {
+  inset: 0;
+  background: rgba(255, 229, 0, 0.36);
+}
+
+.trioTriangle span {
+  inset: 38px;
+  background: rgba(31, 20, 5, 0.8);
+}
+
+.pageHeadup {
+  background:
+    radial-gradient(circle at 18% 5%, rgba(0, 150, 63, 0.5) 0, transparent 34%),
+    radial-gradient(circle at 58% 34%, rgba(42, 255, 97, 0.2) 0, transparent 36%),
+    radial-gradient(circle at 92% 88%, rgba(0, 196, 76, 0.48) 0, transparent 38%),
+    radial-gradient(circle at 88% -12%, rgba(211, 255, 64, 0.18) 0, transparent 28%),
+    #020604;
+}
+
+.pageHeadup .modeBtnActive {
+  border-color: rgba(255, 0, 0, 0.5);
+}
+
+.headupPanel {
+  position: relative;
+  width: min(1018px, 100%);
+  min-height: 790px;
+  border: 1px solid rgba(46, 255, 97, 0.22);
+  border-radius: 44px;
+  background: rgba(5, 24, 11, 0.58);
+  box-shadow: 0 24px 54px rgba(0, 0, 0, 0.34);
+  overflow: hidden;
+}
+
+.headupPanel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 48% 28%, rgba(11, 255, 78, 0.13) 0, transparent 26%),
+    radial-gradient(circle at 88% 74%, rgba(0, 255, 89, 0.2) 0, transparent 24%);
+  pointer-events: none;
+}
+
+.headupChoices {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(120px, 14vh, 150px);
+  padding-top: clamp(112px, 19vh, 190px);
+}
+
+.headupChoiceBtn {
+  width: min(300px, 62%);
+  height: 120px;
+  border: 1.5px solid rgba(20, 255, 91, 0.55);
+  border-radius: 22px;
+  background: rgba(5, 31, 7, 0.92);
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 28px;
+  font-weight: 800;
+  cursor: pointer;
+  filter: drop-shadow(0 10px 11px rgba(0, 0, 0, 0.34));
+  transition: transform 80ms ease, background 100ms ease, border-color 100ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.headupChoiceBtn:hover {
+  background: rgba(7, 45, 12, 0.96);
+  transform: translateY(-1px);
+}
+
+.headupChoiceBtn:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.headupChoiceBtn:disabled:hover {
+  background: rgba(5, 31, 7, 0.92);
+  transform: none;
+}
+
+.headupChoiceBtn:active,
+.headupChoiceBtnTurbo:active {
+  animation: softBoing 180ms ease-out;
+}
+
+.headupChoiceBtnTurbo {
+  border-color: rgba(255, 197, 5, 0.55);
+  background: rgba(13, 31, 5, 0.92);
+}
+
+.headupChoiceBtnTurbo:hover {
+  background: rgba(27, 43, 8, 0.96);
+}
+
+.headupBolt {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 310px;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(20, 255, 91, 0.22);
+  border-radius: 999px;
+  background: rgba(20, 255, 91, 0.06);
+}
+
+.headupBolt::before {
+  content: "";
+  position: absolute;
+  inset: 42px;
+  border: 1px solid rgba(65, 255, 126, 0.25);
+  border-radius: inherit;
+}
+
+.headupBolt span {
+  width: 126px;
+  height: 172px;
+  background: rgba(0, 255, 30, 0.48);
+  border: 1px solid rgba(42, 255, 97, 0.46);
+  clip-path: polygon(78% 0, 52% 42%, 88% 42%, 22% 100%, 46% 56%, 12% 56%);
+  transform: rotate(13deg);
+  filter: drop-shadow(0 0 18px rgba(0, 255, 40, 0.26));
+}
+
+@media (max-height: 920px) {
+  .trioPanel {
+    min-height: 620px;
+  }
+
+  .trioChoices {
+    gap: 92px;
+    padding-top: 110px;
+  }
+
+  .trioChoiceBtn {
+    height: 88px;
+  }
+
+  .trioTriangle {
+    right: 18px;
+    width: 226px;
+    bottom: -8px;
+  }
+
+  .headupPanel {
+    min-height: 620px;
+  }
+
+  .headupChoices {
+    gap: 92px;
+    padding-top: 110px;
+  }
+
+  .headupChoiceBtn {
+    height: 88px;
+  }
+
+  .headupBolt {
+    right: 18px;
+    width: 226px;
+    bottom: -8px;
+  }
+}
+
+@media (max-width: 760px) {
+  .trioChoiceBtn {
+    width: min(240px, 72%);
+    height: 86px;
+    font-size: 22px;
+  }
+
+  .trioTriangle {
+    right: 16px;
+    width: 150px;
+  }
+
+  .trioTriangle span {
+    inset: 24px;
+  }
+
+  .headupChoiceBtn {
+    width: min(240px, 72%);
+    height: 86px;
+    font-size: 22px;
+  }
+
+  .headupBolt {
+    right: 16px;
+    width: 150px;
+  }
+
+  .headupBolt span {
+    width: 64px;
+    height: 92px;
   }
 }

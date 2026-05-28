@@ -38,15 +38,24 @@ export function getLevelIndexFromPublishedBlinds(smallBlind: number | undefined,
   return closestIndex;
 }
 
+function formatLevelDuration(minutes: number) {
+  const totalSeconds = Math.max(1, Math.round((minutes || 5) * 60));
+  const wholeMinutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${wholeMinutes}:${String(seconds).padStart(2, '0')}`;
+}
+
 export function buildBlindLevels(minutes: number, startLevelIndex: number) {
   const rows: BlindLevel[] = [];
   let smallBlind = 25;
+  const duration = formatLevelDuration(minutes);
 
   for (let index = 0; index < startLevelIndex + 7; index += 1) {
     if (index >= startLevelIndex) {
       rows.push({
         level: index + 1,
-        duration: `${minutes || 5}:00`,
+        duration,
         smallBlind,
         bigBlind: smallBlind * 2,
         isCurrent: index === startLevelIndex,

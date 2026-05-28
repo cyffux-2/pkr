@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
       .from('poker-tables')
       .select('*')
       .eq('tournament', tournamentId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
 
     if (tableError) {
       return new Response(JSON.stringify({ error: tableError.message }), {

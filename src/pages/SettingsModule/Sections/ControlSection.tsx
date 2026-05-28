@@ -1,22 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../../lib/supabase';
+import {
+  DEFAULT_SHORTCUTS,
+  normalizeShortcutLabel,
+  sanitizeShortcuts,
+  type Shortcut,
+} from '../../../lib/shortcuts';
 import styles from '../Settings.module.css';
-
-const DEFAULT_SHORTCUTS: Shortcut[] = [
-  { id: 'fold',      label: 'Se coucher',      sub: 'Abandonner la main en cours.',       key: 'F' },
-  { id: 'check',     label: 'Parole / Suivre',   sub: 'Dire parole si possible, sinon suivre.', key: 'C' },
-  { id: 'raise',     label: 'Relancer',         sub: 'Relance en fonction de la mise choisie.', key: 'R' },
-  { id: 'half_pot',  label: 'Mise 1/2 pot',     sub: 'Préparer une mise à 50% du pot.',   key: '1' },
-  { id: 'pot',       label: 'Mise pot',         sub: 'Préparer une mise à hauteur du pot.', key: '2' },
-  { id: 'allin',     label: 'Tapis',            sub: 'Préparer une action à tapis.',        key: 'A' },
-];
-
-interface Shortcut {
-  id: string;
-  label: string;
-  sub: string;
-  key: string;
-}
 
 export function SectionRaccourcis() {
   const [shortcuts, setShortcuts] = useState<Shortcut[]>(DEFAULT_SHORTCUTS);
@@ -28,7 +18,7 @@ export function SectionRaccourcis() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       const saved = user?.user_metadata?.shortcuts;
-      if (saved) setShortcuts(saved);
+      setShortcuts(sanitizeShortcuts(saved));
     });
   }, []);
 
@@ -37,7 +27,8 @@ export function SectionRaccourcis() {
     if (!editing) return;
     e.preventDefault();
 
-    const newKey = e.key === ' ' ? 'Space' : e.key.toUpperCase();
+    const newKey = normalizeShortcutLabel(e.key);
+    if (!newKey) return;
 
     // Vérifie les conflits
     const conflicting = shortcuts.find(s => s.key === newKey && s.id !== editing);
@@ -47,7 +38,7 @@ export function SectionRaccourcis() {
       return;
     }
 
-    const updated = shortcuts.map(s => s.id === editing ? { ...s, key: newKey } : s);
+    const updated = sanitizeShortcuts(shortcuts.map(s => s.id === editing ? { ...s, key: newKey } : s));
     setShortcuts(updated);
     setEditing(null);
     setConflict(null);
@@ -67,9 +58,10 @@ export function SectionRaccourcis() {
   }, [editing, handleKeyDown]);
 
   const resetAll = async () => {
-    setShortcuts(DEFAULT_SHORTCUTS);
+    const defaults = sanitizeShortcuts(DEFAULT_SHORTCUTS);
+    setShortcuts(defaults);
     setEditing(null);
-    await supabase.auth.updateUser({ data: { shortcuts: DEFAULT_SHORTCUTS } });
+    await supabase.auth.updateUser({ data: { shortcuts: defaults } });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -98,6 +90,7 @@ export function SectionRaccourcis() {
                 className={`${styles.keyBadge} ${editing === s.id ? styles.keyBadgeEditing : ''}`}
                 onClick={() => setEditing(editing === s.id ? null : s.id)}
                 title="Cliquer puis appuyer sur une touche"
+                type="button"
               >
                 {editing === s.id ? '...' : s.key}
               </button>
@@ -106,7 +99,7 @@ export function SectionRaccourcis() {
         ))}
       </div>
 
-      <button className={styles.resetBtn} onClick={resetAll}>
+      <button className={styles.resetBtn} onClick={resetAll} type="button">
         Réinitialiser les raccourcis
       </button>
     </div>

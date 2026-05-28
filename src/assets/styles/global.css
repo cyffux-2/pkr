@@ -8,6 +8,19 @@
   --text-muted: rgba(232, 213, 163, 0.5);
   --font-display: 'Playfair Display', serif;
   --font-body: 'Crimson Pro', serif;
+  --app-viewport-height: 100vh;
+}
+
+@supports (height: 100svh) {
+  :root {
+    --app-viewport-height: 100svh;
+  }
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --app-viewport-height: 100dvh;
+  }
 }
 
 *,
@@ -20,20 +33,23 @@
 
 html,
 body {
-  height: 100%;
+  min-height: 100%;
   width: 100%;
   overflow-x: hidden;
-  overflow: hidden
+  overflow-y: auto;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
+  min-width: 320px;
   background: var(--bg-dark);
   color: var(--gold-light);
   font-family: var(--font-body);
 }
 
 #root {
-  height: 100%;
+  min-height: 100%;
   width: 100%;
 }
 

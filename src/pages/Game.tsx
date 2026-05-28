@@ -5,8 +5,10 @@ import { useAuth } from '../context/AuthContext';
 import {
   ensureTableStateCache,
   getCachedTableState,
+  refreshTableStateConnection,
   requestTableStateSnapshot,
   sendTablePlayerAction,
+  sendTablePlayerReturn,
   watchCachedTableState,
   type TablePlayer,
   type TableEvent,
@@ -15,8 +17,8 @@ import {
 } from '../lib/tableStateCache';
 import {
   clearCachedPrivateCards,
-  ensurePrivateCardsChannel,
   getCachedPrivateCards,
+  refreshPrivateCards,
   syncPrivateCardsWithTableState,
   watchCachedPrivateCards,
 } from '../lib/privateCardsCache';
@@ -24,6 +26,12 @@ import {
   dismissEliminatedTable,
   watchDismissedEliminatedTables,
 } from '../lib/eliminatedTournamentDismissals';
+import {
+  getShortcutIdByKey,
+  isEditableShortcutTarget,
+  normalizeKeyboardEventKey,
+  sanitizeShortcuts,
+} from '../lib/shortcuts';
 import { getLevelIndexFromPublishedBlinds } from '../lib/tournamentLevels';
 import styles from './Game.module.css';
 
@@ -40,6 +48,8 @@ const SEATS = [
 
 const BET_PRESET_OPTIONS = [20, 33, 50, 75, 100, 150, 200];
 const DEFAULT_BET_PRESETS = [50, 100];
+const PREFLOP_BET_PRESET_OPTIONS = [2, 2.5, 3, 3.5, 4, 5];
+const DEFAULT_PREFLOP_BET_PRESETS = [2.5, 3];
 const ACTION_TIMEOUT_MS = 15_000;
 const ACTION_CONFIRMATION_GRACE_MS = 2_500;
 const ACTION_LABELS: Record<PlayerAction, string> = {
@@ -80,6 +90,11 @@ function formatCard(card: WireCard | undefined) {
 function isRedCard(card: WireCard | undefined) {
   const color = card?._color ?? card?.color;
   return color === 1 || color === 2;
+}
+
+function cardKey(card: WireCard | undefined) {
+  if (!card) return '';
+  return `${card._color ?? card.color ?? ''}:${card._value ?? card.value ?? ''}`;
 }
 
 function formatClock(ms: number) {
@@ -128,6 +143,16 @@ function getConfiguredBetPresets(value: unknown) {
     .filter(item => BET_PRESET_OPTIONS.includes(item));
 
   return presets.length > 0 ? Array.from(new Set(presets)) : DEFAULT_BET_PRESETS;
+}
+
+function getConfiguredPreflopBetPresets(value: unknown) {
+  if (!Array.isArray(value)) return DEFAULT_PREFLOP_BET_PRESETS;
+
+  const presets = value
+    .map(item => Number(item))
+    .filter(item => PREFLOP_BET_PRESET_OPTIONS.includes(item));
+
+  return presets.length > 0 ? Array.from(new Set(presets)) : DEFAULT_PREFLOP_BET_PRESETS;
 }
 
 function getPlayersClockwiseFromHero(players: (TablePlayer | null)[], heroSeatIndex: number) {
@@ -246,8 +271,12 @@ export default function Game() {
     tournamentId?: number;
     autoTableSwitch?: boolean;
     autoTableSwitchDirection?: 'left' | 'right';
+    returnTo?: string;
   } | null;
   const routeTournamentId = routeState?.tournamentId;
+  const tournamentListPath = routeState?.returnTo === '/sng' || routeState?.returnTo === '/trio' || routeState?.returnTo === '/headup'
+    ? routeState.returnTo
+    : '/tournaments';
   const tableTournamentId = typeof table?.tournamentId === 'number' && Number.isFinite(table.tournamentId)
     ? table.tournamentId
     : null;
@@ -265,16 +294,55 @@ export default function Game() {
   const tablePlayers = useMemo(() => (table?.players.filter(Boolean) as TablePlayer[]) ?? [], [table]);
   const heroSeatIndex = useMemo(() => table?.players.findIndex(player => player?.id === user?.id) ?? -1, [table, user]);
   const isHeroTurn = Boolean(table && heroSeatIndex >= 0 && table.playerToPlay === heroSeatIndex);
-  const actionTimeLeftMs = actionDeadline ? Math.max(0, actionDeadline - now) : 0;
-  const actionProgress = actionDeadline ? Math.max(0, Math.min(1, actionTimeLeftMs / ACTION_TIMEOUT_MS)) : 0;
+  const heroAbsent = Boolean(user?.id && (
+    table?.players[heroSeatIndex]?.absent ||
+    table?.absentPlayerIds?.includes(user.id)
+  ));
   const currentMaxBet = useMemo(() => tablePlayers.reduce((max, player) => Math.max(max, player.bet ?? 0), 0), [tablePlayers]);
   const showOpponentCards = Boolean(table?.showdown);
   const winningPlayerIds = table?.winningPlayerIds ?? [];
+  const winningCardKeysByPlayerId = useMemo(() => {
+    const entries = Object.entries(table?.winningCardsByPlayerId ?? {});
+    return Object.fromEntries(entries.map(([playerId, cards]) => [playerId, new Set(cards.map(cardKey))]));
+  }, [table?.winningCardsByPlayerId]);
+  const winningBoardCardKeys = useMemo(() => {
+    const keys = new Set<string>();
+    Object.values(winningCardKeysByPlayerId).forEach(playerKeys => {
+      table?.common_cards.forEach(card => {
+        const key = cardKey(card);
+        if (playerKeys.has(key)) keys.add(key);
+      });
+    });
+    return keys;
+  }, [table?.common_cards, winningCardKeysByPlayerId]);
   const tournamentWinnerIds = table?.tournamentWinnerIds ?? [];
   const finalWinnerIds = tournamentWinnerIds.length > 0 ? tournamentWinnerIds : winningPlayerIds;
   const activeActionRequestId = table?.actionRequestId ?? null;
   const promptAlreadySubmitted = activeActionRequestId !== null && submittedActionRequestId === activeActionRequestId;
-  const canAttemptAction = isHeroTurn && !promptAlreadySubmitted;
+  const canAttemptAction = isHeroTurn && !promptAlreadySubmitted && !heroAbsent;
+  const backendActionDeadline = typeof table?.actionDeadlineAt === 'number' ? table.actionDeadlineAt : null;
+  const activeActionDeadline = backendActionDeadline ?? actionDeadline;
+  const activeActionStartedAt = typeof table?.actionStartedAt === 'number' ? table.actionStartedAt : null;
+  const activeActionBaseTimeMs = typeof table?.actionBaseTimeMs === 'number' ? table.actionBaseTimeMs : ACTION_TIMEOUT_MS;
+  const activeActionTimebankMs = typeof table?.actionTimebankMs === 'number'
+    ? table.actionTimebankMs
+    : activeActionStartedAt !== null && activeActionDeadline !== null
+      ? Math.max(0, activeActionDeadline - activeActionStartedAt - activeActionBaseTimeMs)
+      : 0;
+  const actionBaseDeadline = activeActionStartedAt !== null ? activeActionStartedAt + activeActionBaseTimeMs : null;
+  const actionTimeLeftMs = canAttemptAction && activeActionDeadline ? Math.max(0, activeActionDeadline - now) : 0;
+  const actionBaseTimeLeftMs = canAttemptAction && actionBaseDeadline ? Math.max(0, actionBaseDeadline - now) : actionTimeLeftMs;
+  const actionTimebankLeftMs = canAttemptAction && activeActionDeadline
+    ? actionBaseTimeLeftMs > 0
+      ? activeActionTimebankMs
+      : Math.max(0, activeActionDeadline - now)
+    : user?.id
+      ? table?.timebankRemainingMs?.[user.id] ?? table?.timebankMaxMs ?? 0
+      : 0;
+  const actionTimerUsesTimebank = canAttemptAction && actionBaseTimeLeftMs <= 0 && activeActionTimebankMs > 0;
+  const actionProgress = actionTimerUsesTimebank
+    ? Math.max(0, Math.min(1, actionTimebankLeftMs / Math.max(1, activeActionTimebankMs)))
+    : Math.max(0, Math.min(1, actionBaseTimeLeftMs / Math.max(1, activeActionBaseTimeMs)));
   const lastEventFeedback = useMemo(
     () => formatTableEvent(table?.lastEvent, tablePlayers, user?.id),
     [table?.lastEvent, tablePlayers, user?.id],
@@ -295,7 +363,23 @@ export default function Game() {
     () => getConfiguredBetPresets(user?.user_metadata?.bet_presets),
     [user?.user_metadata?.bet_presets],
   );
+  const preflopBetPresets = useMemo(
+    () => getConfiguredPreflopBetPresets(user?.user_metadata?.preflop_bet_presets_bb),
+    [user?.user_metadata?.preflop_bet_presets_bb],
+  );
+  const shortcuts = useMemo(
+    () => sanitizeShortcuts(user?.user_metadata?.shortcuts),
+    [user?.user_metadata?.shortcuts],
+  );
+  const shortcutIdByKey = useMemo(
+    () => getShortcutIdByKey(shortcuts),
+    [shortcuts],
+  );
   const isWinningPlayer = (player: TablePlayer | null | undefined) => Boolean(player?.id && winningPlayerIds.includes(player.id));
+  const isWinningPrivateCard = (player: TablePlayer | null | undefined, card: WireCard | undefined) => Boolean(
+    card && player?.id && winningCardKeysByPlayerId[player.id]?.has(cardKey(card))
+  );
+  const isWinningBoardCard = (card: WireCard | undefined) => Boolean(card && winningBoardCardKeys.has(cardKey(card)));
   const visiblePlayers = useMemo(() => {
     const hero = tablePlayers.find(player => player.id === user?.id) ?? (heroSeatIndex >= 0 ? table?.players[heroSeatIndex] ?? null : null);
     const opponents = getPlayersClockwiseFromHero(table?.players ?? [], heroSeatIndex);
@@ -307,35 +391,42 @@ export default function Game() {
   const heroHasCards = Boolean(visiblePlayers.hero?.has_cards);
   const checkOrCallAction: PlayerAction = currentMaxBet > (visiblePlayers.hero?.bet ?? 0) ? 'CALL' : 'CHECK';
   const currentLevel = (getLevelIndexFromPublishedBlinds(table?.SB, table?.BB) ?? 0) + 1;
-  const getPresetRaiseToChips = (percent: number) => {
-    const heroBet = visiblePlayers.hero?.bet ?? 0;
-    const heroChips = visiblePlayers.hero?.chips ?? 0;
-    const bigBlind = table?.BB ?? 50;
-    const raiseBase = potTotal > 0 ? Math.round((potTotal * percent) / 100) : bigBlind;
+  const isPreflop = (table?.common_cards?.length ?? 0) === 0;
+  const activePresetCount = isPreflop ? preflopBetPresets.length : betPresets.length;
+  const heroBet = visiblePlayers.hero?.bet ?? 0;
+  const heroChips = visiblePlayers.hero?.chips ?? 0;
+  const bigBlind = table?.BB ?? 50;
+  const getMinRaiseToChips = useCallback(() => {
     const minRaiseTo = currentMaxBet > 0 ? currentMaxBet + bigBlind : bigBlind;
+    return Math.max(0, Math.min(heroBet + heroChips, minRaiseTo));
+  }, [bigBlind, currentMaxBet, heroBet, heroChips]);
+  const getPreflopPresetRaiseToChips = useCallback((bigBlinds: number) => {
+    const target = Math.round(bigBlinds * bigBlind);
+    return Math.min(heroBet + heroChips, Math.max(getMinRaiseToChips(), target));
+  }, [bigBlind, getMinRaiseToChips, heroBet, heroChips]);
+  const getPresetRaiseToChips = useCallback((percent: number) => {
+    const raiseBase = potTotal > 0 ? Math.round((potTotal * percent) / 100) : bigBlind;
+    const minRaiseTo = getMinRaiseToChips();
     const target = Math.max(minRaiseTo, currentMaxBet + raiseBase);
     return Math.min(heroBet + heroChips, target);
-  };
-  const getAllInRaiseToChips = () => {
-    const heroBet = visiblePlayers.hero?.bet ?? 0;
-    const heroChips = visiblePlayers.hero?.chips ?? 0;
+  }, [bigBlind, currentMaxBet, getMinRaiseToChips, heroBet, heroChips, potTotal]);
+  const getAllInRaiseToChips = useCallback(() => {
     return heroBet + heroChips;
-  };
-  const formatRaiseInputFromChips = (amount: number) => {
-    const bigBlind = table?.BB ?? 50;
+  }, [heroBet, heroChips]);
+  const formatRaiseInputFromChips = useCallback((amount: number) => {
     return stackUnit === 'BB' ? formatInputValue(amount / bigBlind) : formatInputValue(amount);
-  };
-  const parseRaiseInputToChips = () => {
+  }, [bigBlind, stackUnit]);
+  const parseRaiseInputToChips = useCallback(() => {
     const parsed = Number.parseFloat(raiseTo.replace(',', '.'));
     if (!Number.isFinite(parsed) || parsed <= 0) return null;
-    return stackUnit === 'BB' ? Math.round(parsed * (table?.BB ?? 50)) : Math.round(parsed);
-  };
+    return stackUnit === 'BB' ? Math.round(parsed * bigBlind) : Math.round(parsed);
+  }, [bigBlind, raiseTo, stackUnit]);
   const toggleStackUnit = () => {
     const currentChips = parseRaiseInputToChips();
     setStackUnit(current => {
       const next = current === 'BB' ? 'C' : 'BB';
       if (currentChips) {
-        const nextValue = next === 'BB' ? currentChips / (table?.BB ?? 50) : currentChips;
+        const nextValue = next === 'BB' ? currentChips / bigBlind : currentChips;
         setRaiseTo(formatInputValue(nextValue));
       }
       return next;
@@ -347,9 +438,10 @@ export default function Game() {
     pendingActionTimeoutRef.current = null;
   }, []);
   useEffect(() => {
-    const interval = window.setInterval(() => setNow(Date.now()), 250);
+    const intervalMs = canAttemptAction ? 250 : 1000;
+    const interval = window.setInterval(() => setNow(Date.now()), intervalMs);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [canAttemptAction]);
 
   useEffect(() => {
     tableRef.current = table;
@@ -408,7 +500,7 @@ export default function Game() {
     }
 
     setPrivateCards(getCachedPrivateCards(numericTableId, user.id));
-    void ensurePrivateCardsChannel(numericTableId, user.id);
+    refreshPrivateCards(numericTableId, user.id, tableRef.current);
 
     return watchCachedPrivateCards(numericTableId, user.id, setPrivateCards);
   }, [numericTableId, user]);
@@ -535,11 +627,11 @@ export default function Game() {
 
   useEffect(() => {
     if (canAttemptAction) {
-      setActionDeadline(current => current && current > Date.now() ? current : Date.now() + ACTION_TIMEOUT_MS);
+      setActionDeadline(current => backendActionDeadline ?? (current && current > Date.now() ? current : Date.now() + ACTION_TIMEOUT_MS));
     } else {
       setActionDeadline(null);
     }
-  }, [canAttemptAction, table?.playerToPlay]);
+  }, [backendActionDeadline, canAttemptAction, table?.actionRequestId, table?.playerToPlay]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -573,6 +665,7 @@ export default function Game() {
         setTable(cached);
         tableReceivedRef.current = true;
         setFeedback('');
+        refreshPrivateCards(numericTableId, user.id, cached);
       }
 
       const unwatchCache = watchCachedTableState(numericTableId, state => {
@@ -583,12 +676,17 @@ export default function Game() {
       });
 
       void ensureTableStateCache(numericTableId);
-      void ensurePrivateCardsChannel(numericTableId, user.id);
+      refreshPrivateCards(numericTableId, user.id, cached);
+      void sendTablePlayerReturn(numericTableId, user.id).then(status => {
+        if (status === 'ok') {
+          requestTableStateSnapshot(numericTableId, true);
+        }
+      });
 
       stateTimeout = window.setTimeout(() => {
         if (mounted && !tableReceivedRef.current) {
           setFeedback("En attente de l'état de la table...");
-          void ensureTableStateCache(numericTableId);
+          void refreshTableStateConnection(numericTableId, true);
         }
       }, 8000);
 
@@ -607,7 +705,28 @@ export default function Game() {
     };
   }, [authLoading, navigate, numericTableId, user]);
 
-  const sendAction = async (action: PlayerAction) => {
+  useEffect(() => {
+    if (!user || !Number.isFinite(numericTableId) || !heroAbsent || heroEliminated || heroWonTournament) return;
+
+    let cancelled = false;
+    const returnToActiveTable = () => {
+      void sendTablePlayerReturn(numericTableId, user.id).then(status => {
+        if (!cancelled && status === 'ok') {
+          requestTableStateSnapshot(numericTableId, true);
+        }
+      });
+    };
+
+    returnToActiveTable();
+    const interval = window.setInterval(returnToActiveTable, 1500);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [heroAbsent, heroEliminated, heroWonTournament, numericTableId, user]);
+
+  const sendAction = useCallback(async (action: PlayerAction) => {
     if (!user) return;
     setSelectedAction(action);
     window.setTimeout(() => setSelectedAction(current => current === action ? null : current), 180);
@@ -620,6 +739,17 @@ export default function Game() {
     if (!isHeroTurn) {
       setFeedback("Ce n'est pas à toi de jouer.");
       requestTableStateSnapshot(numericTableId);
+      return;
+    }
+    if (heroAbsent) {
+      setFeedback('Tu es absent, reconnexion à la table...');
+      const status = await sendTablePlayerReturn(numericTableId, user.id);
+      if (status === 'ok') {
+        requestTableStateSnapshot(numericTableId, true);
+        setFeedback('Tu es de retour, réessaie ton action.');
+      } else {
+        setFeedback('Retour impossible pour le moment.');
+      }
       return;
     }
 
@@ -635,11 +765,12 @@ export default function Game() {
 
     if (action === 'CALL') payload.amount = 0;
     if (action === 'RAISE') {
-      const parsed = parseRaiseInputToChips();
+      const parsed = raiseTo.trim() === '' ? getMinRaiseToChips() : parseRaiseInputToChips();
       if (!parsed) {
         setFeedback('Entre un montant de relance valide.');
         return;
       }
+      if (raiseTo.trim() === '') setRaiseTo(formatRaiseInputFromChips(parsed));
       payload.raiseTo = parsed;
     }
 
@@ -659,6 +790,7 @@ export default function Game() {
       clearPendingActionTimeout();
       setFeedback("Connexion action en cours, réessaie dans un instant.");
       setSubmittedActionRequestId(null);
+      void refreshTableStateConnection(numericTableId, true);
       return;
     }
 
@@ -670,7 +802,7 @@ export default function Game() {
     if (currentActionRequestId !== null) {
       pendingActionTimeoutRef.current = window.setTimeout(() => {
         pendingActionTimeoutRef.current = null;
-        requestTableStateSnapshot(numericTableId);
+        void refreshTableStateConnection(numericTableId, true);
 
         const latestTable = tableRef.current;
         const latestHeroSeat = latestTable?.players.findIndex(player => player?.id === user.id) ?? -1;
@@ -683,7 +815,69 @@ export default function Game() {
         }
       }, ACTION_CONFIRMATION_GRACE_MS);
     }
-  };
+  }, [
+    clearPendingActionTimeout,
+    formatRaiseInputFromChips,
+    getMinRaiseToChips,
+    heroAbsent,
+    isHeroTurn,
+    numericTableId,
+    parseRaiseInputToChips,
+    promptAlreadySubmitted,
+    raiseTo,
+    user,
+  ]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (isEditableShortcutTarget(event.target)) return;
+
+      const shortcutId = shortcutIdByKey.get(normalizeKeyboardEventKey(event));
+      if (!shortcutId) return;
+
+      event.preventDefault();
+
+      if (shortcutId === 'fold') {
+        void sendAction('FOLD');
+        return;
+      }
+
+      if (shortcutId === 'check') {
+        void sendAction(checkOrCallAction);
+        return;
+      }
+
+      if (shortcutId === 'raise') {
+        void sendAction('RAISE');
+        return;
+      }
+
+      if (shortcutId === 'half_pot') {
+        setRaiseTo(formatRaiseInputFromChips(getPresetRaiseToChips(50)));
+        return;
+      }
+
+      if (shortcutId === 'pot') {
+        setRaiseTo(formatRaiseInputFromChips(getPresetRaiseToChips(100)));
+        return;
+      }
+
+      if (shortcutId === 'allin') {
+        setRaiseTo(formatRaiseInputFromChips(getAllInRaiseToChips()));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    checkOrCallAction,
+    formatRaiseInputFromChips,
+    getAllInRaiseToChips,
+    getPresetRaiseToChips,
+    sendAction,
+    shortcutIdByKey,
+  ]);
 
   const quitEliminatedTournament = () => {
     if (user && Number.isFinite(numericTableId)) {
@@ -692,17 +886,32 @@ export default function Game() {
 
     setHeroEliminated(false);
     setFeedback('');
-    navigate('/tournaments');
+    navigate(tournamentListPath);
+  };
+
+  const returnToTable = async () => {
+    if (!user) return;
+    setFeedback('Retour à la table...');
+    const status = await sendTablePlayerReturn(numericTableId, user.id);
+    if (status === 'ok') {
+      setFeedback('Tu es de retour.');
+      requestTableStateSnapshot(numericTableId);
+    } else {
+      setFeedback('Retour impossible pour le moment.');
+    }
   };
 
   return (
     <div key={numericTableId} className={`${styles.page} ${autoSwitchClass}`}>
-      <button className={`${styles.iconButton} ${styles.homeButton}`} onClick={() => navigate('/tournaments')} aria-label="Retour aux tournois">
+      <button className={`${styles.iconButton} ${styles.homeButton}`} onClick={() => navigate(tournamentListPath)} aria-label="Retour aux tournois">
         <span />
       </button>
       <button
         className={`${styles.iconButton} ${styles.lobbyButton}`}
-        onClick={() => navigate(lobbyTournamentId ? `/tournament-lobby/${lobbyTournamentId}` : '/tournaments')}
+        onClick={() => navigate(
+          lobbyTournamentId ? `/tournament-lobby/${lobbyTournamentId}` : tournamentListPath,
+          { state: { returnTo: tournamentListPath } }
+        )}
         aria-label="Lobby du tournoi"
       >
         <span />
@@ -717,7 +926,7 @@ export default function Game() {
                 {Array.from({ length: 5 }).map((_, index) => {
                   const card = table?.common_cards[index];
                   return (
-                    <div key={index} className={`${styles.card} ${styles.boardCard} ${card ? styles.cardVisible : styles.cardSlot} ${isRedCard(card) ? styles.redCard : ''}`}>
+                    <div key={index} className={`${styles.card} ${styles.boardCard} ${card ? styles.cardVisible : styles.cardSlot} ${isRedCard(card) ? styles.redCard : ''} ${isWinningBoardCard(card) ? styles.winningCard : ''}`}>
                       {card ? formatCard(card) : ''}
                     </div>
                   );
@@ -740,7 +949,7 @@ export default function Game() {
                 {[0, 1].map(cardIndex => {
                   const card = showOpponentCards ? player.cards?.[cardIndex] : undefined;
                   return (
-                    <div key={cardIndex} className={`${styles.card} ${styles.smallCard} ${card ? styles.cardVisible : player.has_cards ? styles.cardBack : styles.cardSlot} ${isRedCard(card) ? styles.redCard : ''}`}>
+                    <div key={cardIndex} className={`${styles.card} ${styles.smallCard} ${card ? styles.cardVisible : player.has_cards ? styles.cardBack : styles.cardSlot} ${isRedCard(card) ? styles.redCard : ''} ${isWinningPrivateCard(player, card) ? styles.winningCard : ''}`}>
                       {card ? formatCard(card) : ''}
                     </div>
                   );
@@ -748,6 +957,7 @@ export default function Game() {
               </div>
               {player.bet ? <div className={styles.bet}>{formatBet(player.bet, table?.BB, stackUnit)}</div> : null}
               <div className={styles.playerName}>{player.name ?? 'Joueur'}</div>
+              {player.absent && <div className={styles.absentBadge}>Absent</div>}
               <div className={styles.playerStack}>{formatStack(player, table?.BB, stackUnit)}</div>
               {table?.button === tableIndex && <div className={styles.dealer}>D</div>}
             </div>
@@ -761,11 +971,17 @@ export default function Game() {
               {[0, 1].map(index => {
                 const card = heroHasCards ? privateCards[index] ?? visiblePlayers.hero?.cards?.[index] : undefined;
                 return (
-                  <div key={index} className={`${styles.card} ${styles.heroCard} ${card ? styles.cardVisible : heroHasCards ? styles.cardBack : styles.cardSlot} ${isRedCard(card) ? styles.redCard : ''}`}>
+                  <div key={index} className={`${styles.card} ${styles.heroCard} ${card ? styles.cardVisible : heroHasCards ? styles.cardBack : styles.cardSlot} ${isRedCard(card) ? styles.redCard : ''} ${isWinningPrivateCard(visiblePlayers.hero, card) ? styles.winningCard : ''}`}>
                     {card ? formatCard(card) : ''}
                   </div>
                 );
               })}
+              {heroAbsent && (
+                <div className={styles.heroAbsentOverlay}>
+                  <span>Absent</span>
+                  <button onClick={returnToTable}>Revenir</button>
+                </div>
+              )}
             </div>
             <div className={styles.heroInfo}>
               <div className={styles.playerName}>{visiblePlayers.hero.name ?? getUserDisplayName(user)}</div>
@@ -795,17 +1011,35 @@ export default function Game() {
 
         <section className={styles.controls} aria-label="Actions">
           {canAttemptAction && (
-            <div className={styles.actionTimer} style={{ '--action-progress': actionProgress } as CSSProperties}>
-              <span>{formatClock(actionTimeLeftMs)}</span>
+            <div className={`${styles.actionTimer} ${actionTimerUsesTimebank ? styles.actionTimerBank : ''}`} style={{ '--action-progress': actionProgress } as CSSProperties}>
+              <span>
+                {actionTimerUsesTimebank
+                  ? `Time Bank ${formatClock(actionTimebankLeftMs)}`
+                  : `Temps ${formatClock(actionBaseTimeLeftMs)}`}
+              </span>
+              <small>
+                {actionTimerUsesTimebank
+                  ? 'Temps 0:00'
+                  : `Time Bank ${formatClock(actionTimebankLeftMs)}`}
+              </small>
               <div />
             </div>
           )}
-          <div className={styles.presetRow}>
-            {betPresets.map(percent => (
-              <button key={percent} className={styles.presetBtn} onClick={() => setRaiseTo(formatRaiseInputFromChips(getPresetRaiseToChips(percent)))}>
-                {percent}%
-              </button>
-            ))}
+          <div
+            className={styles.presetRow}
+            style={{ '--preset-count': activePresetCount + 1 } as CSSProperties}
+          >
+            {isPreflop
+              ? preflopBetPresets.map(bigBlinds => (
+                <button key={bigBlinds} className={styles.presetBtn} onClick={() => setRaiseTo(formatRaiseInputFromChips(getPreflopPresetRaiseToChips(bigBlinds)))}>
+                  {formatInputValue(bigBlinds)}BB
+                </button>
+              ))
+              : betPresets.map(percent => (
+                <button key={percent} className={styles.presetBtn} onClick={() => setRaiseTo(formatRaiseInputFromChips(getPresetRaiseToChips(percent)))}>
+                  {percent}%
+                </button>
+              ))}
             <button className={`${styles.presetBtn} ${styles.allInPresetBtn}`} onClick={() => setRaiseTo(formatRaiseInputFromChips(getAllInRaiseToChips()))}>
               All-in
             </button>

@@ -1,75 +1,78 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../lib/supabase';
-import { publicAsset } from '../../lib/publicAssets';
-import { ensureTournamentTableConnection, getCachedTournamentTable } from '../../lib/tournamentConnections';
-import { ensureTableStateCache } from '../../lib/tableStateCache';
-import { watchDismissedEliminatedTables } from '../../lib/eliminatedTournamentDismissals';
+import { TournamentTableTab } from '../components/TournamentTableTab';
+import { useAuth } from '../context/AuthContext';
 import {
   getActiveTablesForUser,
-  watchActiveTablesForUser,
   type ActiveTableEntry,
-} from '../../lib/activeTablesRegistry';
-import { TournamentTableTab } from '../../components/TournamentTableTab';
-import { ProfilePopup } from '../ProfilModule/ProfilePopup';
-import styles from './Home.module.css';
+  watchActiveTablesForUser,
+} from '../lib/activeTablesRegistry';
+import { watchDismissedEliminatedTables } from '../lib/eliminatedTournamentDismissals';
+import { supabase } from '../lib/supabase';
+import { publicAsset } from '../lib/publicAssets';
+import { ensureTableStateCache } from '../lib/tableStateCache';
+import { ensureTournamentTableConnection, getCachedTournamentTable } from '../lib/tournamentConnections';
+import { ProfilePopup } from './ProfilModule/ProfilePopup';
+import styles from './Tournaments.module.css';
+
+type HeadupChoice = 'normal' | 'turbo';
 
 interface Profile {
-  username:   string;
-  tag:        string;
-  elo:        number;
+  username: string;
+  tag: string;
+  elo: number;
   avatar_url: string | null;
 }
 
 interface ActiveTournament {
-  id:              number;
+  id: number;
   tournament_name: string;
-  start_date:      string;
-  players:         string[];
-  tableId?:        number;
+  start_date: string;
+  players: string[];
+  tableId?: number;
 }
 
 const GAME_MODES = [
-  { label: 'Tournoi', path: '/tournaments', nodeName: 'Tournament' },
-  { label: 'Sit&GO',  path: '/sng', nodeName: 'Sit&go' },
-  { label: 'Triple',  path: '/trio', nodeName: 'Expresso' },
-  { label: 'HeadUp',  path: '/headup', nodeName: 'HeadUp' },
+  { label: 'Tournoi', path: '/tournaments', active: false },
+  { label: 'Sit&GO', path: '/sng', active: false },
+  { label: 'Triple', path: '/trio', active: false },
+  { label: 'HeadUp', path: '/headup', active: true },
 ];
 
-export default function Home() {
+export default function Headup() {
   const navigate = useNavigate();
   const { user } = useAuth();
-
-  const [profile,      setProfile]      = useState<Profile | null>(null);
-  const [popupOpen,    setPopupOpen]    = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [openProfile, setOpenProfile] = useState(false);
   const [activeTournaments, setActiveTournaments] = useState<ActiveTournament[]>([]);
   const [cachedActiveTables, setCachedActiveTables] = useState<ActiveTableEntry[]>([]);
   const [dismissedEliminations, setDismissedEliminations] = useState<Set<number>>(new Set());
-  const [selectedTableTournamentId, setSelectedTableTournamentId] = useState<number | null>(null);
   const [assignedTableIds, setAssignedTableIds] = useState<Record<number, number>>({});
+  const [selectedTableTournamentId, setSelectedTableTournamentId] = useState<number | null>(null);
+  const [selectedChoice, setSelectedChoice] = useState<HeadupChoice | null>(null);
+  const [joiningChoice, setJoiningChoice] = useState<HeadupChoice | null>(null);
+  const [feedback, setFeedback] = useState('');
 
-  // Charge le profil depuis la table profiles
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setProfile(null);
+      setOpenProfile(false);
+      setActiveTournaments([]);
+      setCachedActiveTables([]);
+      setDismissedEliminations(new Set());
+      return;
+    }
+
     supabase
       .from('profiles')
       .select('username, tag, elo, avatar_url')
       .eq('user_id', user.id)
       .single()
-      .then(({ data }) => {
-        if (data) setProfile(data as Profile);
+      .then(({ data, error }) => {
+        if (!error) setProfile(data as Profile);
       });
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) {
-      setActiveTournaments([]);
-      return;
-    }
 
     let cancelled = false;
-
     const fetchActiveTournaments = async () => {
       const { data, error } = await supabase
         .from('tournaments')
@@ -78,20 +81,13 @@ export default function Home() {
         .order('start_date', { ascending: true });
 
       if (cancelled) return;
-
-      if (error) {
-        console.error('Failed to fetch active tournaments:', error);
-        setActiveTournaments([]);
-        return;
-      }
-
-      setActiveTournaments((data ?? []) as ActiveTournament[]);
+      if (!error) setActiveTournaments((data ?? []) as ActiveTournament[]);
     };
 
     fetchActiveTournaments();
 
     const channel = supabase
-      .channel(`home-active-tournaments-${user.id}`)
+      .channel(`headup-active-tournaments-${user.id}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tournaments' },
@@ -99,25 +95,14 @@ export default function Home() {
       )
       .subscribe();
 
-    return () => {
-      cancelled = true;
-      supabase.removeChannel(channel);
-    };
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) {
-      setDismissedEliminations(new Set());
-      setCachedActiveTables([]);
-      return;
-    }
-
     const unwatchDismissed = watchDismissedEliminatedTables(user.id, setDismissedEliminations);
     const unwatchActiveTables = watchActiveTablesForUser(user.id, setCachedActiveTables);
 
     setCachedActiveTables(getActiveTablesForUser(user.id));
 
     return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
       unwatchDismissed();
       unwatchActiveTables();
     };
@@ -161,9 +146,6 @@ export default function Home() {
     setup();
   }, [visibleActiveTournaments, user]);
 
-  const avatarUrl = profile?.avatar_url ?? null;
-  const initiale  = profile?.username?.[0]?.toUpperCase() ?? user?.email?.[0]?.toUpperCase() ?? '?';
-
   const openTournamentTable = async (tournament: ActiveTournament) => {
     if (!user) {
       navigate('/login');
@@ -191,34 +173,89 @@ export default function Home() {
       },
     });
 
-    if (!tableId) {
-      navigate('/tournaments');
+    if (!tableId) return;
+
+    navigate(`/game/${tableId}`, { state: { tournamentId: tournament.id, returnTo: '/headup' } });
+  };
+
+  const selectChoice = async (choice: HeadupChoice) => {
+    if (joiningChoice) return;
+
+    setSelectedChoice(choice);
+    window.setTimeout(() => {
+      setSelectedChoice(current => current === choice ? null : current);
+    }, 220);
+
+    if (!user) {
+      navigate('/login');
       return;
     }
 
-    navigate(`/game/${tableId}`, { state: { tournamentId: tournament.id } });
+    setJoiningChoice(choice);
+    setFeedback(choice === 'normal' ? 'Recherche d’un HeadUp Normal...' : 'Recherche d’un HeadUp Turbo...');
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        navigate('/login');
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('join-headup-tournament', {
+        body: { variant: choice },
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (error || data?.error || !data?.tournament) {
+        const details = data?.error || error?.message;
+        setFeedback(details ? `Impossible de rejoindre un HeadUp : ${details}` : 'Impossible de rejoindre un HeadUp pour le moment.');
+        console.error('join-headup-tournament failed:', error ?? data);
+        return;
+      }
+
+      const tournament = data.tournament as ActiveTournament;
+      setActiveTournaments(current => {
+        const withoutCurrent = current.filter(item => item.id !== tournament.id);
+        return [...withoutCurrent, tournament];
+      });
+
+      setFeedback('HeadUp trouvé, recherche de ta table...');
+      const tableId = tournament.tableId ?? getCachedTournamentTable(tournament.id, user.id) ?? await ensureTournamentTableConnection({
+        tournamentId: tournament.id,
+        userId: user.id,
+        accessToken: session.access_token,
+        onAssigned: assigned => {
+          setAssignedTableIds(current => ({ ...current, [tournament.id]: assigned }));
+          void ensureTableStateCache(assigned);
+        },
+      });
+
+      if (!tableId) {
+        setFeedback('Inscription confirmée. Ta table sera disponible bientôt.');
+        return;
+      }
+
+      setFeedback('');
+      void ensureTableStateCache(tableId);
+      navigate(`/game/${tableId}`, { state: { tournamentId: tournament.id, returnTo: '/headup' } });
+    } finally {
+      setJoiningChoice(null);
+    }
   };
 
   return (
-    <div className={styles.page} data-name="Main Page - nothing">
-      <div className={styles.background} aria-hidden="true" />
-
+    <div className={`${styles.page} ${styles.pageHeadup}`} data-name="Main Page - headup">
       <aside className={styles.sidebar}>
-        <div className={styles.logoWrap}>
-          <img
-            src={publicAsset('/figma/main-page-nothing/pkr-logo-black-bg.png')}
-            alt="PKR"
-            className={styles.logoImg}
-          />
-        </div>
+        <button className={styles.logoWrap} onClick={() => navigate('/home')} aria-label="Accueil">
+          <img src={publicAsset('/figma/main-page-nothing/pkr-logo-black-bg.png')} alt="PKR" className={styles.logoImg} />
+        </button>
 
         <nav className={styles.modeList}>
-          {GAME_MODES.map(({ label, path, nodeName }) => (
+          {GAME_MODES.map(({ label, path, active }) => (
             <button
               key={label}
-              className={styles.modeBtn}
+              className={`${styles.modeBtn} ${active ? styles.modeBtnActive : ''}`}
               onClick={() => navigate(path)}
-              data-name={nodeName}
             >
               <span>{label}</span>
               <span className={styles.playIcon} aria-hidden="true" />
@@ -230,25 +267,37 @@ export default function Home() {
           <button className={styles.iconBtn} onClick={() => navigate('/settings')} title="Paramètres">
             <img src={publicAsset('/figma/main-page-nothing/settings-icon.svg')} alt="" className={styles.iconImg} />
           </button>
-
-          <button
-            className={styles.iconBtn}
-            onClick={() => setPopupOpen(v => !v)}
-            title="Profil"
-          >
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="Avatar" className={styles.avatarImg} />
-            ) : (
-              <>
-                <img src={publicAsset('/figma/main-page-nothing/profile-icon.svg')} alt="" className={styles.iconImg} />
-                <span className={styles.avatarInitiale}>{initiale}</span>
-              </>
-            )}
+          <button className={styles.iconBtn} onClick={() => setOpenProfile(true)} title="Profil">
+            <img src={publicAsset('/figma/main-page-nothing/profile-icon.svg')} alt="" className={styles.iconImg} />
           </button>
         </div>
       </aside>
 
-      <main className={styles.main} aria-label="Accueil PKR">
+      <main className={styles.main}>
+        {feedback && <div className={styles.feedback}>{feedback}</div>}
+
+        <section className={styles.headupPanel} aria-label="HeadUp">
+          <div className={styles.headupChoices}>
+            <button
+              className={`${styles.headupChoiceBtn} ${selectedChoice === 'normal' ? styles.trioChoiceBtnSelected : ''}`}
+              onClick={() => selectChoice('normal')}
+              disabled={joiningChoice !== null}
+            >
+              Normal
+            </button>
+            <button
+              className={`${styles.headupChoiceBtn} ${styles.headupChoiceBtnTurbo} ${selectedChoice === 'turbo' ? styles.trioChoiceBtnSelected : ''}`}
+              onClick={() => selectChoice('turbo')}
+              disabled={joiningChoice !== null}
+            >
+              Turbo
+            </button>
+          </div>
+          <div className={styles.headupBolt} aria-hidden="true">
+            <span />
+          </div>
+        </section>
+
         {visibleActiveTournaments.length > 0 && (
           <div className={styles.bottomBar}>
             <div className={styles.tournamentTabs}>
@@ -268,10 +317,10 @@ export default function Home() {
         )}
       </main>
 
-      {popupOpen && (
+      {openProfile && (
         <ProfilePopup
           profile={profile}
-          onClose={() => setPopupOpen(false)}
+          onClose={() => setOpenProfile(false)}
         />
       )}
     </div>

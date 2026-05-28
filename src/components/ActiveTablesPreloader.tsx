@@ -13,7 +13,7 @@ import {
 } from '../lib/tableStateCache';
 import {
   closePrivateCardsForUser,
-  ensurePrivateCardsChannel,
+  refreshPrivateCards,
   syncPrivateCardsWithTableState,
 } from '../lib/privateCardsCache';
 import {
@@ -28,6 +28,25 @@ type ActiveTournamentRow = {
   start_date: string;
   players: string[];
 };
+
+function tournamentFingerprint(tournament: ActiveTournamentRow) {
+  return [
+    tournament.id,
+    tournament.tournament_name,
+    tournament.start_date,
+    tournament.players.join(','),
+  ].join(':');
+}
+
+function sameTournamentRow(left: ActiveTournamentRow | undefined, right: ActiveTournamentRow) {
+  return Boolean(left && tournamentFingerprint(left) === tournamentFingerprint(right));
+}
+
+function sameTournamentRows(left: ActiveTournamentRow[], right: ActiveTournamentRow[]) {
+  if (left.length !== right.length) return false;
+
+  return left.every((row, index) => tournamentFingerprint(row) === tournamentFingerprint(right[index]));
+}
 
 export function ActiveTablesPreloader() {
   const { user, session, loading } = useAuth();
@@ -86,13 +105,16 @@ export function ActiveTablesPreloader() {
       }
 
       const rows = (data ?? []) as ActiveTournamentRow[];
-      setActiveTournaments(rows);
+      setActiveTournaments(current => sameTournamentRows(current, rows) ? current : rows);
       setKnownTournamentsById(current => {
+        let changed = false;
         const next = { ...current };
         rows.forEach(tournament => {
+          if (sameTournamentRow(current[tournament.id], tournament)) return;
           next[tournament.id] = tournament;
+          changed = true;
         });
-        return next;
+        return changed ? next : current;
       });
     };
 
@@ -149,8 +171,7 @@ export function ActiveTablesPreloader() {
           current[tournamentId] === cachedTableId ? current : { ...current, [tournamentId]: cachedTableId }
         ));
         void ensureTableStateCache(cachedTableId);
-        void ensurePrivateCardsChannel(cachedTableId, userId);
-        syncPrivateCardsWithTableState(cachedTableId, userId, getCachedTableState(cachedTableId));
+        refreshPrivateCards(cachedTableId, userId, getCachedTableState(cachedTableId));
       }
 
       void ensureTournamentTableConnection({
@@ -159,12 +180,11 @@ export function ActiveTablesPreloader() {
         accessToken,
         onAssigned: tableId => {
           if (cancelled) return;
-          setTableIdsByTournament(current => (
-            current[tournamentId] === tableId ? current : { ...current, [tournamentId]: tableId }
-          ));
-          void ensureTableStateCache(tableId);
-          void ensurePrivateCardsChannel(tableId, userId);
-          syncPrivateCardsWithTableState(tableId, userId, getCachedTableState(tableId));
+          setTableIdsByTournament(current => {
+            void ensureTableStateCache(tableId);
+            refreshPrivateCards(tableId, userId, getCachedTableState(tableId));
+            return current[tournamentId] === tableId ? current : { ...current, [tournamentId]: tableId };
+          });
         },
       });
     });
@@ -179,8 +199,7 @@ export function ActiveTablesPreloader() {
 
     const cleanups = tableIds.map(tableId => {
       void ensureTableStateCache(tableId);
-      void ensurePrivateCardsChannel(tableId, userId);
-      syncPrivateCardsWithTableState(tableId, userId, getCachedTableState(tableId));
+      refreshPrivateCards(tableId, userId, getCachedTableState(tableId));
 
       return watchCachedTableState(tableId, state => {
         syncPrivateCardsWithTableState(tableId, userId, state);

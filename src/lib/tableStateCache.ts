@@ -1,5 +1,5 @@
 import { RealtimeChannel } from '@supabase/supabase-js';
-import { supabase } from './supabase';
+import { realtimeInputSupabase, supabase } from './supabase';
 
 export type WireCard = {
   _color?: number;
@@ -15,6 +15,7 @@ export type TablePlayer = {
   chips: number;
   bet: number;
   cards?: WireCard[];
+  absent?: boolean;
 };
 
 export type EloAdjustmentInfo = {
@@ -24,6 +25,7 @@ export type EloAdjustmentInfo = {
   delta: number;
   placement: number;
   chanceMultiplier: number;
+  eloMultiplier?: number;
   allInEvAdjustment: number;
 };
 
@@ -45,6 +47,7 @@ export type TableEvent = {
   pot?: number[];
   winningPlayerIds?: string[];
   automatic?: boolean;
+  timebankRemainingMs?: number;
 };
 
 export type TableState = {
@@ -54,6 +57,14 @@ export type TableState = {
   tournamentId?: number;
   turnId?: number;
   actionRequestId?: number;
+  actionStartedAt?: number;
+  actionDeadlineAt?: number;
+  actionBaseTimeMs?: number;
+  actionTimebankMs?: number;
+  timebankRemainingMs?: Record<string, number>;
+  timebankMaxMs?: number;
+  timebankRefillIntervalMs?: number;
+  nextTimebankRefillAt?: number;
   common_cards: WireCard[];
   players: (TablePlayer | null)[];
   pot: number[];
@@ -63,7 +74,9 @@ export type TableState = {
   SB: number;
   game_status: string | number;
   showdown?: boolean;
+  absentPlayerIds?: string[];
   winningPlayerIds?: string[];
+  winningCardsByPlayerId?: Record<string, WireCard[]>;
   tournamentWinnerIds?: string[];
   eloResults?: Record<string, EloAdjustmentInfo>;
   lastEvent?: TableEvent | null;
@@ -78,14 +91,18 @@ type ProfileRow = {
 type CacheEntry = {
   channel?: RealtimeChannel;
   actionChannel?: RealtimeChannel;
+  inputChannel?: RealtimeChannel;
   connecting?: Promise<TableState | null>;
   actionConnecting?: Promise<RealtimeChannel | null>;
+  inputConnecting?: Promise<RealtimeChannel | null>;
   fallbackInterval?: number;
   snapshotInterval?: number;
   visibilityListener?: () => void;
   reconnectTimeout?: number;
   lastStateAt?: number;
   lastSnapshotRequestedAt?: number;
+  notifyTimeout?: number;
+  pendingNotifyState?: TableState;
   fingerprint?: string;
   requestSnapshot?: (force?: boolean) => void;
   state?: TableState;
@@ -96,9 +113,12 @@ const tableCache = new Map<number, CacheEntry>();
 const STALE_STATE_SNAPSHOT_MS = 12000;
 const SNAPSHOT_CHECK_MS = 5000;
 const SNAPSHOT_MIN_INTERVAL_MS = 5000;
+const SNAPSHOT_FORCE_MIN_INTERVAL_MS = 1500;
 const FALLBACK_REFRESH_MS = 5000;
 const RECONNECT_DELAY_MS = 1000;
 const ACTION_CHANNEL_RETRY_DELAY_MS = 180;
+const MAX_CACHED_EVENTS = 80;
+const TABLE_STATE_NOTIFY_THROTTLE_MS = 80;
 
 function numericValue(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -146,6 +166,7 @@ function stateFingerprint(state: TableState) {
         result.delta,
         result.placement,
         result.chanceMultiplier,
+        result.eloMultiplier ?? '',
         result.allInEvAdjustment,
       ])
     : [];
@@ -154,17 +175,31 @@ function stateFingerprint(state: TableState) {
     tournamentId: state.tournamentId ?? null,
     turnId: state.turnId ?? null,
     actionRequestId: state.actionRequestId ?? null,
+    actionStartedAt: state.actionStartedAt ?? null,
+    actionDeadlineAt: state.actionDeadlineAt ?? null,
+    actionBaseTimeMs: state.actionBaseTimeMs ?? null,
+    actionTimebankMs: state.actionTimebankMs ?? null,
+    timebankRemainingMs: state.timebankRemainingMs ?? {},
+    timebankMaxMs: state.timebankMaxMs ?? null,
+    timebankRefillIntervalMs: state.timebankRefillIntervalMs ?? null,
+    nextTimebankRefillAt: state.nextTimebankRefillAt ?? null,
     playerToPlay: state.playerToPlay,
     button: state.button,
     BB: state.BB,
     SB: state.SB,
     gameStatus: state.game_status,
     showdown: Boolean(state.showdown),
+    absentPlayerIds: state.absentPlayerIds ?? [],
     winners: state.winningPlayerIds ?? [],
+    winningCardsByPlayerId: Object.fromEntries(
+      Object.entries(state.winningCardsByPlayerId ?? {})
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([playerId, cards]) => [playerId, cards.map(cardFingerprint)])
+    ),
     tournamentWinners: state.tournamentWinnerIds ?? [],
     eloResults,
     lastEventId: state.lastEvent?.id ?? null,
-    eventIds: state.events?.map(event => event.id) ?? [],
+    eventIds: state.events?.slice(-MAX_CACHED_EVENTS).map(event => event.id) ?? [],
     commonCards: state.common_cards.map(cardFingerprint),
     pot: state.pot,
     players: state.players.map(player => player
@@ -174,11 +209,35 @@ function stateFingerprint(state: TableState) {
         player.has_cards,
         player.chips,
         player.bet,
+        Boolean(player.absent),
         player.cards?.map(cardFingerprint) ?? [],
       ]
       : null
     ),
   });
+}
+
+function trimTableStateEvents(state: TableState) {
+  if (!state.events || state.events.length <= MAX_CACHED_EVENTS) return state;
+
+  return {
+    ...state,
+    events: state.events.slice(-MAX_CACHED_EVENTS),
+  };
+}
+
+function scheduleStateListeners(entry: CacheEntry, state: TableState) {
+  entry.pendingNotifyState = state;
+  if (entry.notifyTimeout) return;
+
+  entry.notifyTimeout = window.setTimeout(() => {
+    entry.notifyTimeout = undefined;
+    const latestState = entry.pendingNotifyState;
+    entry.pendingNotifyState = undefined;
+
+    if (!latestState) return;
+    entry.listeners.forEach(listener => listener(latestState));
+  }, TABLE_STATE_NOTIFY_THROTTLE_MS);
 }
 
 function extractTableStatePayload(payload: unknown): TableState | null {
@@ -231,23 +290,24 @@ export function getCachedTableState(tableId: number) {
 }
 
 export function setCachedTableState(state: TableState) {
+  const nextState = trimTableStateEvents(state);
   const entry = getEntry(state.id);
 
-  if (!isFreshTableState(entry.state, state)) {
+  if (!isFreshTableState(entry.state, nextState)) {
     return false;
   }
 
   entry.lastStateAt = Date.now();
 
-  const fingerprint = stateFingerprint(state);
+  const fingerprint = stateFingerprint(nextState);
   if (entry.fingerprint === fingerprint) {
-    entry.state = state;
+    entry.state = nextState;
     return false;
   }
 
   entry.fingerprint = fingerprint;
-  entry.state = state;
-  entry.listeners.forEach(listener => listener(state));
+  entry.state = nextState;
+  scheduleStateListeners(entry, nextState);
   return true;
 }
 
@@ -299,6 +359,32 @@ async function resetTableActionChannel(tableId: number, channel: RealtimeChannel
   } catch {
     // Best effort cleanup. The next action will recreate a fresh channel.
   }
+}
+
+async function resetTableInputChannel(tableId: number, channel: RealtimeChannel) {
+  const entry = getEntry(tableId);
+  if (entry.inputChannel === channel) {
+    entry.inputChannel = undefined;
+  }
+  try {
+    channel.unsubscribe();
+  } catch {
+    // Supabase can emit CLOSED while unsubscribe is already in progress.
+  }
+  try {
+    await realtimeInputSupabase.removeChannel(channel);
+  } catch {
+    // Best effort cleanup. The next input send will recreate a fresh channel.
+  }
+}
+
+function getChannelState(channel: RealtimeChannel | undefined) {
+  return (channel as unknown as { state?: string } | undefined)?.state;
+}
+
+function isReusableStateChannel(channel: RealtimeChannel | undefined) {
+  const state = getChannelState(channel);
+  return state === undefined || state === 'joined';
 }
 
 function scheduleReconnect(tableId: number, channel: RealtimeChannel) {
@@ -360,8 +446,13 @@ async function fetchDbFallback(tableId: number) {
 
 export async function ensureTableStateCache(tableId: number) {
   const entry = getEntry(tableId);
-  if (entry.channel) return entry.state ?? null;
   if (entry.connecting) return entry.connecting;
+  if (entry.channel) {
+    if (isReusableStateChannel(entry.channel)) {
+      return entry.state ?? null;
+    }
+    await resetTableChannel(tableId, entry.channel);
+  }
 
   entry.connecting = (async () => {
     if (entry.channel) return entry.state ?? null;
@@ -385,7 +476,8 @@ export async function ensureTableStateCache(tableId: number) {
 
     const requestSnapshot = (force = false) => {
       const now = Date.now();
-      if (!force && now - (entry.lastSnapshotRequestedAt ?? 0) < SNAPSHOT_MIN_INTERVAL_MS) {
+      const minInterval = force ? SNAPSHOT_FORCE_MIN_INTERVAL_MS : SNAPSHOT_MIN_INTERVAL_MS;
+      if (now - (entry.lastSnapshotRequestedAt ?? 0) < minInterval) {
         return;
       }
       entry.lastSnapshotRequestedAt = now;
@@ -477,6 +569,13 @@ async function createTableActionChannel(tableId: number) {
   });
   entry.actionChannel = channel;
 
+  channel.on('broadcast', { event: 'table_update' }, ({ payload }) => {
+    const next = extractTableStatePayload(payload);
+    if (next) {
+      setCachedTableState(next);
+    }
+  });
+
   const subscribed = await new Promise<boolean>(resolve => {
     let settled = false;
     const settle = (value: boolean) => {
@@ -534,70 +633,153 @@ async function ensureTableActionChannel(tableId: number) {
   }
 }
 
-export function requestTableStateSnapshot(tableId: number) {
-  const entry = tableCache.get(tableId);
-  entry?.requestSnapshot?.();
+async function createTableInputChannel(tableId: number) {
+  const entry = getEntry(tableId);
+  if (entry.inputChannel && isReusableActionChannel(entry.inputChannel)) return entry.inputChannel;
+
+  const channel = realtimeInputSupabase.channel(`table:${tableId}:input`, {
+    config: {
+      broadcast: {
+        ack: true,
+        self: false,
+      },
+    },
+  });
+  entry.inputChannel = channel;
+
+  const subscribed = await new Promise<boolean>(resolve => {
+    let settled = false;
+    const settle = (value: boolean) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
+    channel.subscribe(status => {
+      if (status === 'SUBSCRIBED') {
+        settle(true);
+        return;
+      }
+
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        if (entry.inputChannel === channel) {
+          entry.inputChannel = undefined;
+        }
+
+        if (!settled) {
+          settle(false);
+        }
+      }
+    });
+  });
+
+  if (!subscribed) {
+    await resetTableInputChannel(tableId, channel);
+    return null;
+  }
+
+  return channel;
 }
 
-export async function sendTablePlayerAction(tableId: number, payload: Record<string, unknown>) {
+async function ensureTableInputChannel(tableId: number) {
+  const entry = getEntry(tableId);
+  if (entry.inputChannel) {
+    if (isReusableActionChannel(entry.inputChannel)) return entry.inputChannel;
+    await resetTableInputChannel(tableId, entry.inputChannel);
+  }
+  if (entry.inputConnecting) return entry.inputConnecting;
+
+  entry.inputConnecting = (async () => {
+    const firstAttempt = await createTableInputChannel(tableId);
+    if (firstAttempt) return firstAttempt;
+
+    await sleep(ACTION_CHANNEL_RETRY_DELAY_MS);
+    return createTableInputChannel(tableId);
+  })();
+
+  try {
+    return await entry.inputConnecting;
+  } finally {
+    entry.inputConnecting = undefined;
+  }
+}
+
+export function requestTableStateSnapshot(tableId: number, force = false) {
+  const entry = tableCache.get(tableId);
+  entry?.requestSnapshot?.(force);
+}
+
+export async function refreshTableStateConnection(tableId: number, force = false) {
+  await ensureTableStateCache(tableId);
+  requestTableStateSnapshot(tableId, force);
+}
+
+type TableInputEvent = 'player_action' | 'player_return' | 'private_cards_request';
+
+async function sendTableInputBroadcast(tableId: number, event: TableInputEvent, payload: Record<string, unknown>) {
   try {
     await ensureTableStateCache(tableId);
   } catch {
     // The action channel can still be used if the state cache is reconnecting.
   }
 
-  const channel = await ensureTableActionChannel(tableId);
-  if (!channel) {
+  const entry = getEntry(tableId);
+  const actionChannel = await ensureTableActionChannel(tableId);
+  const inputChannel = await ensureTableInputChannel(tableId);
+  const targets: Array<{ kind: 'input' | 'actions' | 'spectator'; channel: RealtimeChannel }> = [];
+  if (inputChannel) {
+    targets.push({ kind: 'input', channel: inputChannel });
+  }
+  if (actionChannel) {
+    targets.push({ kind: 'actions', channel: actionChannel });
+  }
+  if (entry.channel && isReusableStateChannel(entry.channel)) {
+    targets.push({ kind: 'spectator', channel: entry.channel });
+  }
+
+  if (targets.length === 0) {
     return 'channel_unavailable';
   }
 
-  let status: string;
-  try {
-    status = await channel.send({
-      type: 'broadcast',
-      event: 'player_action',
-      payload,
-    });
-  } catch {
-    status = 'send_error';
-  }
+  const results = await Promise.all(targets.map(async ({ kind, channel }) => {
+    let status: string;
+    try {
+      status = await channel.send({
+        type: 'broadcast',
+        event,
+        payload,
+      });
+    } catch {
+      status = 'send_error';
+    }
 
-  if (status !== 'ok') {
-    await resetTableActionChannel(tableId, channel);
-  }
+    if (status !== 'ok') {
+      if (kind === 'actions') {
+        await resetTableActionChannel(tableId, channel);
+      } else if (kind === 'input') {
+        await resetTableInputChannel(tableId, channel);
+      } else if (entry.channel === channel) {
+        await resetTableChannel(tableId, channel);
+      }
+    }
 
-  return status;
+    return status;
+  }));
+
+  return results.includes('ok') ? 'ok' : results[0] ?? 'channel_unavailable';
+}
+
+export async function sendTablePlayerAction(tableId: number, payload: Record<string, unknown>) {
+  return sendTableInputBroadcast(tableId, 'player_action', payload);
+}
+
+export async function sendTablePlayerReturn(tableId: number, playerId: string) {
+  return sendTableInputBroadcast(tableId, 'player_return', { playerId });
 }
 
 export async function requestTablePrivateCards(tableId: number, playerId: string, turnId?: number | null) {
-  try {
-    await ensureTableStateCache(tableId);
-  } catch {
-    // Private cards can still be requested while the public state cache reconnects.
-  }
-
-  const channel = await ensureTableActionChannel(tableId);
-  if (!channel) {
-    return 'channel_unavailable';
-  }
-
-  let status: string;
-  try {
-    status = await channel.send({
-      type: 'broadcast',
-      event: 'private_cards_request',
-      payload: {
-        playerId,
-        ...(typeof turnId === 'number' ? { turnId } : {}),
-      },
-    });
-  } catch {
-    status = 'send_error';
-  }
-
-  if (status !== 'ok') {
-    await resetTableActionChannel(tableId, channel);
-  }
-
-  return status;
+  return sendTableInputBroadcast(tableId, 'private_cards_request', {
+    playerId,
+    ...(typeof turnId === 'number' ? { turnId } : {}),
+  });
 }

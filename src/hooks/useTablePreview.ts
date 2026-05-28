@@ -7,8 +7,8 @@ import {
   type WireCard,
 } from '../lib/tableStateCache';
 import {
-  ensurePrivateCardsChannel,
   getCachedPrivateCards,
+  refreshPrivateCards,
   syncPrivateCardsWithTableState,
   watchCachedPrivateCards,
 } from '../lib/privateCardsCache';
@@ -39,7 +39,7 @@ export function useTablePreview(tableId: number | null | undefined, userId: stri
     }
 
     setPrivateCards(getCachedPrivateCards(tableId, userId));
-    void ensurePrivateCardsChannel(tableId, userId);
+    refreshPrivateCards(tableId, userId, getCachedTableState(tableId));
     return watchCachedPrivateCards(tableId, userId, setPrivateCards);
   }, [tableId, userId]);
 

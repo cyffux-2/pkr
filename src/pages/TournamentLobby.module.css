@@ -1,6 +1,7 @@
 .page {
-  min-height: 100vh;
-  overflow: hidden;
+  min-height: var(--app-viewport-height);
+  overflow-x: hidden;
+  overflow-y: auto;
   background:
     radial-gradient(circle at -8% 4%, rgba(255, 9, 9, 0.42), transparent 34%),
     radial-gradient(circle at 72% 88%, rgba(0, 128, 102, 0.32), transparent 34%),
@@ -13,8 +14,8 @@
 
 .shell {
   position: relative;
-  width: min(1320px, calc(100vw - 80px));
-  min-height: 100vh;
+  width: min(1320px, calc(100% - 80px));
+  min-height: var(--app-viewport-height);
   margin: 0 auto;
   padding: 38px 0 88px;
 }

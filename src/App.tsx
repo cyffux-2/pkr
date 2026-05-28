@@ -7,6 +7,9 @@ import Home from './pages/HomeModule/Home';
 import Settings from './pages/SettingsModule/Settings';
 import Lobby from './pages/Lobby';
 import Game from './pages/Game';
+import Sng from './pages/Sng';
+import Trio from './pages/Trio';
+import Headup from './pages/Headup';
 import Tournaments from './pages/Tournaments';
 import TournamentLobby from './pages/TournamentLobby';
 import Leaderboard from './pages/Leaderboard';
@@ -34,6 +37,9 @@ function AppRoutes() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/tournaments"    element={<Tournaments />} />
+        <Route path="/sng"            element={<Sng />} />
+        <Route path="/trio"           element={<Trio />} />
+        <Route path="/headup"         element={<Headup />} />
         <Route path="/tournament-lobby/:tournamentId" element={<TournamentLobby />} />
         <Route path="/game/:tableId"  element={<Game />} />
 

@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
       .from('tournaments')
       .select('*')
       .order('start_date', { ascending: false })
-      .limit(10)
+      .limit(50)
 
     if (error) {
       return new Response(JSON.stringify({ error: error.message }), {

@@ -6,6 +6,7 @@ type Connection = {
   interval?: number;
   fallbackTimeout?: number;
   tableId?: number;
+  fallback?: () => void;
   promise: Promise<number | null>;
   resolve: (tableId: number | null) => void;
   listeners: Set<(tableId: number) => void>;
@@ -16,6 +17,7 @@ type PokerTableRow = {
 };
 
 const connections = new Map<string, Connection>();
+const enableEdgeFunctionTableFallback = process.env.REACT_APP_ENABLE_GET_TOURNAMENT_TABLE_FUNCTION === '1';
 
 function connectionKey(tournamentId: number, userId: string) {
   return `${tournamentId}:${userId}`;
@@ -29,10 +31,6 @@ function parseTableId(payload: unknown) {
 
 function notify(connection: Connection, tableId: number) {
   if (connection.tableId === tableId) return;
-  if (connection.interval) {
-    window.clearInterval(connection.interval);
-    connection.interval = undefined;
-  }
   if (connection.fallbackTimeout) {
     window.clearTimeout(connection.fallbackTimeout);
     connection.fallbackTimeout = undefined;
@@ -64,8 +62,12 @@ export async function ensureTournamentTableConnection(params: {
   const existing = connections.get(key);
 
   if (existing) {
-    if (onAssigned) existing.listeners.add(onAssigned);
-    if (existing.tableId) onAssigned?.(existing.tableId);
+    if (existing.tableId) {
+      onAssigned?.(existing.tableId);
+    } else if (onAssigned) {
+      existing.listeners.add(onAssigned);
+      existing.fallback?.();
+    }
     return existing.promise;
   }
 
@@ -100,7 +102,7 @@ export async function ensureTournamentTableConnection(params: {
 
   let fallbackInFlight = false;
   const fallback = async () => {
-    if (connection.tableId || fallbackInFlight) return;
+    if (fallbackInFlight) return;
     fallbackInFlight = true;
 
     try {
@@ -108,25 +110,30 @@ export async function ensureTournamentTableConnection(params: {
         .from('poker-tables')
         .select('id, players')
         .eq('tournament', tournamentId)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false });
       const dbTable = pickPlayerTable(tableRows as PokerTableRow[] | null, userId);
       if (dbTable?.id && Number.isFinite(Number(dbTable.id))) {
         notify(connection, Number(dbTable.id));
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke('get-tournament-table', {
-        body: { tournamentId },
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      if (enableEdgeFunctionTableFallback) {
+        const { data, error } = await supabase.functions.invoke('get-tournament-table', {
+          body: { tournamentId },
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
 
-      const tableId = error || data?.error || !data?.tableId ? null : Number(data.tableId);
-      if (tableId && Number.isFinite(tableId)) {
-        notify(connection, tableId);
+        const tableId = error || data?.error || !data?.tableId ? null : Number(data.tableId);
+        if (tableId && Number.isFinite(tableId)) {
+          notify(connection, tableId);
+        }
       }
     } finally {
       fallbackInFlight = false;
     }
+  };
+  connection.fallback = () => {
+    void fallback();
   };
 
   channel
@@ -143,6 +150,7 @@ export async function ensureTournamentTableConnection(params: {
         connection.fallbackTimeout = window.setTimeout(() => {
           void fallback();
         }, 1200);
+        if (connection.interval) window.clearInterval(connection.interval);
         connection.interval = window.setInterval(() => {
           requestTable();
           void fallback();
@@ -157,6 +165,10 @@ export async function ensureTournamentTableConnection(params: {
   connection.fallbackTimeout = window.setTimeout(() => {
     void fallback();
   }, 1500);
+
+  connection.interval = window.setInterval(() => {
+    void fallback();
+  }, 5000);
 
   return promise;
 }

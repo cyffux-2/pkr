@@ -9,15 +9,16 @@ import {
 } from '../lib/activeTablesRegistry';
 import { watchDismissedEliminatedTables } from '../lib/eliminatedTournamentDismissals';
 import { supabase } from '../lib/supabase';
-import { publicAsset } from '../lib/publicAssets';
 import { ensureTableStateCache } from '../lib/tableStateCache';
 import { ensureTournamentTableConnection, getCachedTournamentTable } from '../lib/tournamentConnections';
 import { ProfilePopup } from './ProfilModule/ProfilePopup';
+import { publicAsset } from '../lib/publicAssets';
 import styles from './Tournaments.module.css';
 
 type TrioChoice = 'normal' | 'turbo';
 
 interface Profile {
+  user_id: string;
   username: string;
   tag: string;
   elo: number;
@@ -65,7 +66,7 @@ export default function Trio() {
 
     supabase
       .from('profiles')
-      .select('username, tag, elo, avatar_url')
+      .select('user_id, username, tag, elo, avatar_url')
       .eq('user_id', user.id)
       .single()
       .then(({ data, error }) => {

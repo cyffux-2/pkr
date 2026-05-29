@@ -1,7 +1,7 @@
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 60;
   pointer-events: none;
 }
 
@@ -138,3 +138,34 @@
   box-shadow: 0 4px 16px rgba(255, 59, 68, 0.3);
 }
 .btnPrimary:hover { background: #ff4d55; }
+
+.statsOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  overflow: auto;
+  background: rgba(0, 0, 0, 0.66);
+  backdrop-filter: blur(8px);
+  pointer-events: all;
+}
+
+.statsModal {
+  width: min(1240px, 100%);
+  margin: auto;
+  animation: statsIn 140ms ease-out;
+}
+
+@keyframes statsIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

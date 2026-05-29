@@ -1,0 +1,920 @@
+.panel {
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  width: min(1268px, 100%);
+  padding: clamp(26px, 3.4vw, 48px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: clamp(28px, 4vw, 46px);
+  background: rgba(6, 7, 10, 0.86);
+  box-shadow: 0 28px 64px rgba(0, 0, 0, 0.42);
+  color: #fff;
+  font-family: Inter, Arial, sans-serif;
+}
+
+.pagePanel {
+  margin: 0 auto;
+}
+
+.modalPanel {
+  width: min(1240px, calc(100vw - 28px));
+  height: auto;
+  min-height: 0;
+  max-height: none;
+}
+
+.glowOrange,
+.glowBlue,
+.glowGold {
+  position: absolute;
+  z-index: -2;
+  pointer-events: none;
+  filter: blur(6px);
+}
+
+.glowOrange {
+  width: 52%;
+  aspect-ratio: 1;
+  top: -30%;
+  left: -22%;
+  background: radial-gradient(circle, rgba(255, 80, 25, 0.54), transparent 66%);
+}
+
+.glowBlue {
+  width: 68%;
+  aspect-ratio: 1.35;
+  right: 8%;
+  bottom: -24%;
+  background: radial-gradient(circle, rgba(33, 130, 255, 0.24), transparent 68%);
+}
+
+.glowGold {
+  width: 46%;
+  aspect-ratio: 1;
+  top: -35%;
+  right: -12%;
+  background: radial-gradient(circle, rgba(255, 185, 46, 0.28), transparent 66%);
+}
+
+.closeButton {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  z-index: 3;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.09);
+  cursor: pointer;
+  transition: filter 90ms ease, transform 90ms ease, border-color 90ms ease;
+}
+
+.closeButton svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+  overflow: visible;
+  shape-rendering: geometricPrecision;
+}
+
+.closeButton line {
+  stroke: #fff;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.closeButton:hover {
+  filter: brightness(0.76);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.closeButton:active {
+  transform: scale(0.94);
+}
+
+.header {
+  position: relative;
+  z-index: 200;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 34px;
+  padding-right: 46px;
+}
+
+.header h1,
+.header p,
+.panelTitle h2,
+.panelTitle p,
+.identityText h2,
+.identityText p {
+  margin: 0;
+}
+
+.header h1 {
+  font-size: clamp(28px, 3vw, 42px);
+  font-weight: 900;
+  line-height: 1.05;
+}
+
+.header p {
+  margin-top: 8px;
+  color: #b2b8c7;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+
+.headerActions > span {
+  min-width: 108px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.headerActions > span {
+  padding: 0 18px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.searchWrap,
+.leaderboardWrap {
+  position: relative;
+  z-index: 220;
+}
+
+.searchButton,
+.leaderboardButton {
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  border: 1px solid rgba(255, 199, 77, 0.24);
+  border-radius: 18px;
+  background: rgba(255, 133, 36, 0.92);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: filter 90ms ease, transform 90ms ease;
+}
+
+.leaderboardButton {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.searchButton:hover,
+.leaderboardButton:hover {
+  filter: brightness(0.78);
+}
+
+.searchButton:active,
+.leaderboardButton:active {
+  transform: scale(0.96);
+}
+
+.searchBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9980;
+  border: 0;
+  background: rgba(0, 0, 0, 0.48);
+  cursor: default;
+}
+
+.searchPanel {
+  position: absolute;
+  top: 52px;
+  right: 0;
+  z-index: 9990;
+  width: min(330px, calc(100vw - 48px));
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 18px;
+  background: #020306;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.9);
+}
+
+.leaderboardPanel {
+  position: absolute;
+  top: 52px;
+  right: 0;
+  z-index: 9990;
+  width: min(760px, calc(100vw - 48px));
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 22px;
+  background: #020306;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.9);
+}
+
+.leaderboardPanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.leaderboardPanelHeader h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.leaderboardPanelHeader span {
+  color: #ff9e2e;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.leaderboardGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.leaderboardCard {
+  min-height: 186px;
+  position: relative;
+  overflow: hidden;
+  padding: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.leaderboardCard h3 {
+  margin: 0 0 10px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.leaderboardRows {
+  display: grid;
+  gap: 7px;
+}
+
+.leaderboardRow {
+  min-height: 30px;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 11px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.leaderboardRank {
+  color: #ff9e2e;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.leaderboardRow strong {
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboardRow em {
+  color: #bdc7db;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.leaderboardEmpty {
+  margin: 20px 0 0;
+  color: #8f94a3;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.leaderboardCardDeveloping::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+}
+
+.leaderboardCardDeveloping .developmentRibbon {
+  top: 54%;
+  width: min(300px, 126%);
+  height: 30px;
+  font-size: 11px;
+  transform: translate(-50%, -50%) rotate(-12deg);
+}
+
+.searchPanel input {
+  width: 100%;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 13px;
+  outline: none;
+  background: #101219;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.searchPanel input:focus {
+  border-color: rgba(255, 133, 36, 0.55);
+}
+
+.searchResults {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.searchResults p {
+  margin: 0;
+  padding: 10px 8px;
+  color: #a8adbd;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.searchResults button {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 13px;
+  background: #101219;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+  transition: background 90ms ease, transform 90ms ease;
+}
+
+.searchResults button:hover {
+  background: #20232c;
+}
+
+.searchResults button:active {
+  transform: scale(0.98);
+}
+
+.searchResults strong,
+.searchResults span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.searchResults strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.searchResults span {
+  flex: 0 0 auto;
+  color: #ff9e2e;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.contentGrid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(280px, 1.35fr) repeat(3, minmax(180px, 1fr));
+  gap: 28px 24px;
+}
+
+.card {
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.profileCard {
+  min-height: 164px;
+  padding: 26px 24px 22px;
+}
+
+.identityRow {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.avatar {
+  width: 78px;
+  height: 78px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 158, 46, 0.35);
+  border-radius: 999px;
+  background: radial-gradient(circle at 35% 25%, rgba(255, 158, 46, 0.45), rgba(77, 45, 15, 0.95));
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar span {
+  color: #fff;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.identityText {
+  min-width: 0;
+}
+
+.identityText h2 {
+  overflow: hidden;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.identityText p {
+  margin-top: 6px;
+  color: #a8adbd;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.rankBlock {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  align-items: end;
+  gap: 6px 18px;
+  margin-top: 28px;
+}
+
+.rankBlock span {
+  grid-column: 1 / -1;
+  color: #ff9e2e;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.rankBlock strong {
+  color: #fff;
+  font-size: clamp(28px, 3vw, 38px);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.rankBlock em {
+  align-self: center;
+  color: #61ff94;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.kpiCard {
+  min-height: 120px;
+  padding: 18px 22px;
+}
+
+.kpiCard span {
+  color: #a8adbd;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.kpiCard strong {
+  display: block;
+  margin-top: 8px;
+  color: #fff;
+  font-size: clamp(25px, 2.5vw, 32px);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.achievementsPanel,
+.progressPanel {
+  min-height: 288px;
+  padding: 24px;
+}
+
+.achievementsPanel {
+  grid-column: span 2;
+}
+
+.developmentHost {
+  position: relative;
+  overflow: hidden;
+}
+
+.developmentHost::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+}
+
+.developmentRibbon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  width: min(430px, 122%);
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%) rotate(-14deg);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: linear-gradient(90deg, rgba(255, 80, 43, 0.96), rgba(255, 151, 45, 0.96));
+  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.32);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.progressPanel {
+  grid-column: span 2;
+}
+
+.panelTitle h2 {
+  color: #fff;
+  font-size: 25px;
+  font-weight: 900;
+  line-height: 1.05;
+}
+
+.panelTitle p {
+  margin-top: 8px;
+  color: #a3a8b8;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.achievementGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 22px;
+  margin-top: 18px;
+}
+
+.achievement {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 184, 56, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  opacity: 0.72;
+}
+
+.achievementUnlocked {
+  border-color: rgba(255, 184, 56, 0.18);
+  opacity: 1;
+}
+
+.achievement > span {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  color: #ffb838;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.achievement strong,
+.achievement small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.achievement strong {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.achievement small {
+  margin-top: 2px;
+  color: #9499a8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.progressPanel {
+  display: flex;
+  flex-direction: column;
+}
+
+.rankProgressCard {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+  margin-top: 22px;
+  padding: 16px;
+  border: 1px solid rgba(255, 184, 56, 0.14);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 48px 50%, rgba(255, 184, 56, 0.14), transparent 54%),
+    rgba(255, 255, 255, 0.045);
+}
+
+.rankAssetFrame {
+  width: 96px;
+  height: 96px;
+  display: grid;
+  place-items: center;
+  border-radius: 22px;
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 0 24px rgba(255, 255, 255, 0.04);
+}
+
+.rankAsset {
+  width: 84px;
+  height: 84px;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 12px 20px rgba(0, 0, 0, 0.34));
+}
+
+.rankProgressContent {
+  min-width: 0;
+}
+
+.rankProgressHeader,
+.rankProgressMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.rankProgressHeader span {
+  display: block;
+  color: #a8adbd;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.rankProgressHeader strong {
+  display: block;
+  margin-top: 4px;
+  color: #fff;
+  font-size: clamp(22px, 2.2vw, 30px);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.rankProgressHeader em {
+  color: #ff9e2e;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 900;
+  text-align: right;
+}
+
+.rankProgressMeta {
+  margin-top: 10px;
+  color: #bdc7db;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.rankProgressMeta span:last-child {
+  color: #8f94a3;
+  text-align: right;
+}
+
+.progressRow {
+  position: relative;
+  margin-top: 26px;
+}
+
+.progressRowDeveloping {
+  overflow: hidden;
+  margin-right: -12px;
+  margin-left: -12px;
+  padding: 12px 12px 16px;
+  border-radius: 18px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.progressRowDeveloping::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+}
+
+.progressRowDeveloping .developmentRibbon {
+  top: 58%;
+  width: min(330px, 126%);
+  height: 28px;
+  font-size: 11px;
+  transform: translate(-50%, -50%) rotate(-10deg);
+}
+
+.progressLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 14px;
+}
+
+.progressLabel strong,
+.progressLabel span {
+  font-weight: 900;
+}
+
+.progressLabel span {
+  color: #bdc7db;
+  text-align: right;
+}
+
+.progressTrack {
+  height: 10px;
+  margin-top: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.progressTrack span {
+  width: var(--progress);
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: rgba(255, 133, 36, 0.94);
+  box-shadow: 0 0 12px rgba(255, 107, 31, 0.22);
+}
+
+@media (max-width: 1060px) {
+  .contentGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profileCard {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 720px) {
+  .panel {
+    padding: 22px;
+    border-radius: 26px;
+  }
+
+  .header {
+    flex-direction: column;
+    margin-bottom: 24px;
+    padding-right: 44px;
+  }
+
+  .headerActions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .headerActions > span,
+  .searchButton,
+  .leaderboardButton {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .searchWrap,
+  .leaderboardWrap {
+    flex: 1;
+  }
+
+  .searchButton,
+  .leaderboardButton {
+    width: 100%;
+  }
+
+  .leaderboardPanel {
+    right: auto;
+    left: 0;
+  }
+
+  .contentGrid,
+  .achievementGrid,
+  .leaderboardGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .profileCard,
+  .achievementsPanel,
+  .progressPanel {
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 480px) {
+  .modalPanel {
+    width: calc(100vw - 20px);
+    max-height: calc(var(--app-viewport-height) - 20px);
+  }
+
+  .identityRow {
+    align-items: flex-start;
+  }
+
+  .avatar {
+    width: 64px;
+    height: 64px;
+  }
+
+  .rankBlock {
+    grid-template-columns: 1fr;
+  }
+
+  .rankProgressCard {
+    grid-template-columns: 1fr;
+  }
+
+  .rankAssetFrame {
+    justify-self: center;
+  }
+
+  .rankProgressHeader,
+  .rankProgressMeta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .rankProgressHeader em,
+  .rankProgressMeta span:last-child {
+    text-align: left;
+  }
+}

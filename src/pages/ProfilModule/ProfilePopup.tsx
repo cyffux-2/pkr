@@ -1,8 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PlayerStatsPanel from '../../components/PlayerStatsPanel';
 import styles from './ProfilePopup.module.css';
 
 interface Profile {
+  user_id?:    string;
   username:   string;
   tag:        string;
   elo:        number;
@@ -17,20 +19,37 @@ interface Props {
 export function ProfilePopup({ profile, onClose }: Props) {
   const navigate = useNavigate();
   const ref      = useRef<HTMLDivElement>(null);
+  const statsRef = useRef<HTMLDivElement>(null);
+  const [statsOpen, setStatsOpen] = useState(false);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+
+      if (statsOpen) {
+        if (statsRef.current?.contains(target) || ref.current?.contains(target)) return;
+        setStatsOpen(false);
+        return;
+      }
+
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [onClose]);
+  }, [onClose, statsOpen]);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (statsOpen) {
+        setStatsOpen(false);
+        return;
+      }
+      onClose();
+    };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
+  }, [onClose, statsOpen]);
 
   const initiale = profile?.username?.[0]?.toUpperCase() ?? '?';
 
@@ -59,7 +78,7 @@ export function ProfilePopup({ profile, onClose }: Props) {
         <div className={styles.btns}>
           <button
             className={styles.btnSecondary}
-            onClick={() => { navigate('/stats'); onClose(); }}
+            onClick={() => setStatsOpen(true)}
           >
             Voir les statistiques
           </button>
@@ -72,6 +91,25 @@ export function ProfilePopup({ profile, onClose }: Props) {
         </div>
 
       </div>
+      {statsOpen && (
+        <div
+          className={styles.statsOverlay}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Statistiques de ${profile?.username ?? 'joueur'}`}
+          onMouseDown={event => {
+            if (event.target === event.currentTarget) setStatsOpen(false);
+          }}
+        >
+          <div className={styles.statsModal} ref={statsRef}>
+            <PlayerStatsPanel
+              mode="modal"
+              onClose={() => setStatsOpen(false)}
+              profile={profile}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

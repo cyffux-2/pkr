@@ -274,6 +274,7 @@
   display: grid;
   place-items: center;
   padding: 24px;
+  overflow: auto;
   background: rgba(0, 0, 0, 0.56);
   backdrop-filter: blur(6px);
 }

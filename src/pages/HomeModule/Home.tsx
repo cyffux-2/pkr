@@ -2,7 +2,6 @@ import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { publicAsset } from '../../lib/publicAssets';
 import { ensureTournamentTableConnection, getCachedTournamentTable } from '../../lib/tournamentConnections';
 import { ensureTableStateCache } from '../../lib/tableStateCache';
 import { watchDismissedEliminatedTables } from '../../lib/eliminatedTournamentDismissals';
@@ -13,9 +12,11 @@ import {
 } from '../../lib/activeTablesRegistry';
 import { TournamentTableTab } from '../../components/TournamentTableTab';
 import { ProfilePopup } from '../ProfilModule/ProfilePopup';
+import { publicAsset } from '../../lib/publicAssets';
 import styles from './Home.module.css';
 
 interface Profile {
+  user_id:     string;
   username:   string;
   tag:        string;
   elo:        number;
@@ -54,7 +55,7 @@ export default function Home() {
     if (!user) return;
     supabase
       .from('profiles')
-      .select('username, tag, elo, avatar_url')
+      .select('user_id, username, tag, elo, avatar_url')
       .eq('user_id', user.id)
       .single()
       .then(({ data }) => {

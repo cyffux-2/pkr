@@ -1,0 +1,60 @@
+.page {
+  min-height: var(--app-viewport-height);
+  padding: clamp(22px, 5vw, 74px);
+  background:
+    radial-gradient(circle at -8% 4%, rgba(255, 80, 25, 0.34), transparent 34%),
+    radial-gradient(circle at 72% 82%, rgba(33, 130, 255, 0.22), transparent 36%),
+    radial-gradient(circle at 92% -10%, rgba(255, 185, 46, 0.18), transparent 30%),
+    #030305;
+  color: #fff;
+  font-family: Inter, Arial, sans-serif;
+}
+
+.backButton {
+  width: 46px;
+  height: 46px;
+  margin: 0 0 18px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 16px;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.07);
+  cursor: pointer;
+  transition: filter 90ms ease, transform 90ms ease;
+}
+
+.backButton svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+  overflow: visible;
+  shape-rendering: geometricPrecision;
+}
+
+.backButton line {
+  stroke: #fff;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.backButton:hover {
+  filter: brightness(0.76);
+}
+
+.backButton:active {
+  transform: scale(0.95);
+}
+
+.feedback {
+  width: min(520px, 100%);
+  margin: 80px auto 0;
+  padding: 20px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.86);
+  font-weight: 800;
+  text-align: center;
+}

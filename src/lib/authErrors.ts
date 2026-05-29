@@ -2,7 +2,7 @@ export function translateAuthError(message: string): string {
   const normalized = message.toLowerCase();
 
   if (normalized.includes('email not confirmed')) {
-    return 'Email non confirmé.';
+    return 'Compte non activé.';
   }
 
   if (normalized.includes('invalid login credentials')) {

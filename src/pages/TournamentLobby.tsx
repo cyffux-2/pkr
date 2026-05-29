@@ -16,6 +16,7 @@ import { watchDismissedEliminatedTables } from '../lib/eliminatedTournamentDismi
 import { buildBlindLevels, getLevelIndexFromPublishedBlinds } from '../lib/tournamentLevels';
 import { formatWireCard, isRedWireCard } from '../lib/cardDisplay';
 import { useTablePreview } from '../hooks/useTablePreview';
+import PlayerStatsPanel from '../components/PlayerStatsPanel';
 import styles from './TournamentLobby.module.css';
 
 interface TournamentRow {
@@ -32,13 +33,18 @@ interface TournamentRow {
 interface ProfileRow {
   user_id: string;
   username: string;
+  tag: string | null;
   elo: number;
+  avatar_url: string | null;
 }
 
 type PlayerRow = {
   id: string;
   name: string;
   elo: number | string;
+  tag: string | null;
+  avatar_url: string | null;
+  rank: number | null;
   stack: number | string;
   bet: number;
 };
@@ -102,6 +108,7 @@ export default function TournamentLobby() {
 
   const [tournament, setTournament] = useState<TournamentRow | null>(null);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [profileRanks, setProfileRanks] = useState<Record<string, number>>({});
   const [tableId, setTableId] = useState<number | null>(null);
   const [tableState, setTableState] = useState<TableState | null>(null);
   const [selectedStatsPlayer, setSelectedStatsPlayer] = useState<PlayerRow | null>(null);
@@ -132,6 +139,9 @@ export default function TournamentLobby() {
         id: playerId,
         name: tablePlayer?.name ?? profile?.username ?? 'Joueur',
         elo: profile?.elo ?? '-',
+        tag: profile?.tag ?? null,
+        avatar_url: profile?.avatar_url ?? null,
+        rank: profileRanks[playerId] ?? null,
         stack: tablePlayer ? tablePlayer.chips : index === 0 ? 1000 : 1000,
         bet: tablePlayer?.bet ?? 0,
       };
@@ -140,7 +150,7 @@ export default function TournamentLobby() {
       const rightStack = typeof right.stack === 'number' ? right.stack : Number.NEGATIVE_INFINITY;
       return rightStack - leftStack;
     });
-  }, [alivePlayerIds, profiles, tableState, tournament]);
+  }, [alivePlayerIds, profileRanks, profiles, tableState, tournament]);
   const currentLevelIndex = getLevelIndexFromPublishedBlinds(tableState?.SB, tableState?.BB) ?? getCurrentLevelIndex(tournament, now);
   const levelRows = useMemo(
     () => buildBlindLevels(tournament?.time_per_level ?? 5, currentLevelIndex),
@@ -174,6 +184,9 @@ export default function TournamentLobby() {
       id: `empty-${index}`,
       name: 'Libre',
       elo: '-',
+      tag: null,
+      avatar_url: null,
+      rank: null,
       stack: '-',
       bet: 0,
     }));
@@ -220,14 +233,24 @@ export default function TournamentLobby() {
       if (next.players.length > 0) {
         const { data: profileRows } = await supabase
           .from('profiles')
-          .select('user_id, username, elo')
+          .select('user_id, username, tag, elo, avatar_url')
           .in('user_id', next.players);
 
         if (!cancelled) {
           setProfiles((profileRows ?? []) as ProfileRow[]);
         }
+
+        const { data: leaderboardRows } = await supabase
+          .from('profiles')
+          .select('user_id, elo')
+          .order('elo', { ascending: false });
+
+        if (!cancelled) {
+          setProfileRanks(Object.fromEntries((leaderboardRows ?? []).map((row, index) => [row.user_id, index + 1])));
+        }
       } else {
         setProfiles([]);
+        setProfileRanks({});
       }
     };
 
@@ -404,24 +427,22 @@ export default function TournamentLobby() {
 
       {selectedStatsPlayer && (
         <div className={styles.statsOverlay} role="dialog" aria-modal="true" aria-label={`Stats de ${selectedStatsPlayer.name}`} onClick={closeStats}>
-          <section className={styles.statsPanel} onClick={event => event.stopPropagation()}>
-            <button className={styles.statsClose} onClick={closeStats} aria-label="Fermer les stats" />
-            <div className={styles.statsHeader}>
-              <div className={styles.statsAvatar}>{selectedStatsPlayer.name.slice(0, 1).toUpperCase()}</div>
-              <div>
-                <h2>{selectedStatsPlayer.name}</h2>
-                <p>Stats joueur</p>
-              </div>
-            </div>
-            <div className={styles.statsGrid}>
-              <span>Elo</span>
-              <strong>{selectedStatsPlayer.elo}</strong>
-              <span>Stack</span>
-              <strong>{selectedStatsPlayer.stack}</strong>
-              <span>Mise</span>
-              <strong>{selectedStatsPlayer.bet}</strong>
-            </div>
-          </section>
+          <div onClick={event => event.stopPropagation()}>
+            <PlayerStatsPanel
+              mode="modal"
+              onClose={closeStats}
+              profile={{
+                user_id: selectedStatsPlayer.id,
+                username: selectedStatsPlayer.name,
+                tag: selectedStatsPlayer.tag,
+                elo: selectedStatsPlayer.elo,
+                avatar_url: selectedStatsPlayer.avatar_url,
+                rank: selectedStatsPlayer.rank,
+                stack: selectedStatsPlayer.stack,
+                bet: selectedStatsPlayer.bet,
+              }}
+            />
+          </div>
         </div>
       )}
     </div>

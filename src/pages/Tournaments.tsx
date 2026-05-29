@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { publicAsset } from '../lib/publicAssets';
 import { useAuth } from '../context/AuthContext';
 import { ensureTournamentTableConnection, getCachedTournamentTable } from '../lib/tournamentConnections';
 import { ensureTableStateCache } from '../lib/tableStateCache';
@@ -13,9 +12,11 @@ import {
 } from '../lib/activeTablesRegistry';
 import { TournamentTableTab } from '../components/TournamentTableTab';
 import { ProfilePopup } from './ProfilModule/ProfilePopup';
+import { publicAsset } from '../lib/publicAssets';
 import styles from './Tournaments.module.css';
 
 interface Profile {
+  user_id: string;
   username: string;
   tag: string;
   elo: number;
@@ -307,7 +308,7 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
 
     supabase
       .from('profiles')
-      .select('username, tag, elo, avatar_url')
+      .select('user_id, username, tag, elo, avatar_url')
       .eq('user_id', user.id)
       .single()
       .then(({ data, error }) => {

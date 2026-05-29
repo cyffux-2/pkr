@@ -34,14 +34,13 @@ export default function Register() {
 
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({
-      email,
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
         data: {
-          pseudo,
-          username: pseudo,
+          pseudo: pseudo.trim(),
+          username: pseudo.trim(),
           level,
           elo: LEVEL_ELO[level],
         },
@@ -51,7 +50,20 @@ export default function Register() {
     if (error) {
       setError(translateAuthError(error.message));
     } else {
-      navigate('/confirm-email', { state: { email } });
+      if (data.session) {
+        navigate('/home', { replace: true });
+      } else {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+
+        if (signInError) {
+          setError(translateAuthError(signInError.message));
+        } else {
+          navigate('/home', { replace: true });
+        }
+      }
     }
     setLoading(false);
   };

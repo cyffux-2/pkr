@@ -12,7 +12,6 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [resending, setResending] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -40,14 +39,14 @@ export default function Login() {
         if (error) {
           setError(translateAuthError(error.message));
         } else {
-          setNotice('Email confirmé, tu peux maintenant te connecter.');
+          navigate('/home', { replace: true });
         }
       })
       .finally(() => {
         setLoading(false);
         window.history.replaceState({}, document.title, window.location.pathname);
       });
-  }, [location.state]);
+  }, [location.state, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,40 +55,10 @@ export default function Login() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setError(translateAuthError(error.message));
-      if (error.message.toLowerCase().includes('email not confirmed')) {
-        setNotice('Ton email n’est pas encore confirmé. Tu peux demander un nouveau lien.');
-      }
     } else {
       navigate('/home');
     }
     setLoading(false);
-  };
-
-  const resendConfirmation = async () => {
-    if (!email.trim()) {
-      setError('Entre ton email pour recevoir un nouveau lien de confirmation.');
-      return;
-    }
-
-    setError('');
-    setNotice('');
-    setResending(true);
-
-    const { error } = await supabase.auth.resend({
-      type: 'signup',
-      email: email.trim(),
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-
-    if (error) {
-      setError(translateAuthError(error.message));
-    } else {
-      setNotice('Nouveau mail de confirmation envoyé.');
-    }
-
-    setResending(false);
   };
 
   return (
@@ -152,21 +121,7 @@ export default function Login() {
           <p className={styles.subtitleLight}>Connecte-toi pour reprendre la compétition.</p>
 
           {notice && <div className={styles.notice}>{notice}</div>}
-          {error && (
-            <div className={styles.error}>
-              {error}
-              {error.toLowerCase().includes('email non confirmé') && (
-                <button
-                  type="button"
-                  className={styles.inlineAuthButton}
-                  onClick={resendConfirmation}
-                  disabled={resending}
-                >
-                  {resending ? 'Envoi...' : 'Renvoyer le mail'}
-                </button>
-              )}
-            </div>
-          )}
+          {error && <div className={styles.error}>{error}</div>}
 
           <form onSubmit={handleSubmit}>
             <div className={styles.field}>

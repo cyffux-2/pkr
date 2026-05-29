@@ -16,13 +16,13 @@ export default function AuthCallback() {
     if (errorDescription) {
       navigate('/login', {
         replace: true,
-        state: { notice: 'Compte validé. Tu peux maintenant te connecter.' },
+        state: { notice: 'Lien invalide ou expiré.' },
       });
       return;
     }
 
     if (!code) {
-      setError('Lien de confirmation invalide ou expiré.');
+      setError('Lien invalide ou expiré.');
       return;
     }
 
@@ -31,15 +31,12 @@ export default function AuthCallback() {
         if (error) {
           navigate('/login', {
             replace: true,
-            state: { notice: 'Compte validé. Tu peux maintenant te connecter.' },
+            state: { notice: 'Lien invalide ou expiré.' },
           });
           return;
         }
 
-        navigate('/login', {
-          replace: true,
-          state: { notice: 'Email confirmé, tu peux maintenant te connecter.' },
-        });
+        navigate('/home', { replace: true });
       });
   }, [navigate]);
 
@@ -56,7 +53,7 @@ export default function AuthCallback() {
 
         {error ? (
           <>
-            <p className={styles.title}>Confirmation impossible</p>
+            <p className={styles.title}>Connexion impossible</p>
             <div className={styles.error}>{error}</div>
             <div className={styles.footer} style={{ marginTop: '2rem' }}>
               <Link to="/login">Retour à la connexion</Link>
@@ -64,8 +61,8 @@ export default function AuthCallback() {
           </>
         ) : (
           <>
-            <p className={styles.title}>Confirmation en cours</p>
-            <p className={styles.subtitleDark}>Validation de ton compte PKR...</p>
+            <p className={styles.title}>Connexion en cours</p>
+            <p className={styles.subtitleDark}>Préparation de ta session PKR...</p>
           </>
         )}
       </div>

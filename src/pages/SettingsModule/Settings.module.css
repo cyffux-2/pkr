@@ -477,6 +477,113 @@
 
 .fileLabel:hover { border-color: rgba(255,255,255,0.3); color: #fff; }
 
+.avatarCropper {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+}
+
+.avatarCropFrame {
+  position: relative;
+  width: 260px;
+  max-width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25% 75%, rgba(255, 255, 255, 0.04) 75%),
+    linear-gradient(45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25% 75%, rgba(255, 255, 255, 0.04) 75%),
+    #121212;
+  background-position: 0 0, 10px 10px;
+  background-size: 20px 20px;
+  box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.04), 0 18px 36px rgba(0, 0, 0, 0.34);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.avatarCropFrame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid rgba(255, 255, 255, 0.42);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.avatarCropFrameDragging {
+  cursor: grabbing;
+}
+
+.avatarCropImage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  transform-origin: center;
+  will-change: transform;
+}
+
+.avatarCropControls {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 12px;
+  color: #aaa;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.avatarCropControls .slider {
+  width: 100%;
+}
+
+.avatarCropActions {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 0.72fr 1fr;
+  gap: 10px;
+}
+
+.avatarSecondaryBtn {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: #252525;
+  color: #ddd;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 13px;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.avatarSecondaryBtn:hover {
+  background: #303030;
+}
+
+.avatarSecondaryBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.avatarFileName {
+  max-width: 100%;
+  margin: -4px 0 0;
+  overflow: hidden;
+  color: #666;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Slider ── */
 .slider {
   -webkit-appearance: none;

@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PlayerAvatar from '../../components/PlayerAvatar';
 import PlayerStatsPanel from '../../components/PlayerStatsPanel';
 import styles from './ProfilePopup.module.css';
 
 interface Profile {
   user_id?:    string;
-  username:   string;
-  tag:        string;
-  elo:        number;
+  username:   string | null;
+  tag:        string | null;
+  elo:        number | null;
   avatar_url: string | null;
 }
 
@@ -51,19 +52,16 @@ export function ProfilePopup({ profile, onClose }: Props) {
     return () => document.removeEventListener('keydown', handler);
   }, [onClose, statsOpen]);
 
-  const initiale = profile?.username?.[0]?.toUpperCase() ?? '?';
-
   return (
     <div className={styles.overlay}>
       <div className={styles.popup} ref={ref}>
 
-        <div className={styles.avatarWrap}>
-          {profile?.avatar_url ? (
-            <img src={profile.avatar_url} alt="Avatar" className={styles.avatarImg} />
-          ) : (
-            <div className={styles.avatarFallback}>{initiale}</div>
-          )}
-        </div>
+        <PlayerAvatar
+          name={profile?.username}
+          avatarUrl={profile?.avatar_url}
+          className={styles.profileAvatar}
+          tone="dark"
+        />
 
         <div className={styles.identity}>
           <span className={styles.pseudo}>{profile?.username ?? '—'}</span>

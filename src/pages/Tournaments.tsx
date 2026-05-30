@@ -10,18 +10,10 @@ import {
   watchActiveTablesForUser,
   type ActiveTableEntry,
 } from '../lib/activeTablesRegistry';
+import PlayerAvatar from '../components/PlayerAvatar';
 import { TournamentTableTab } from '../components/TournamentTableTab';
 import { ProfilePopup } from './ProfilModule/ProfilePopup';
-import { publicAsset } from '../lib/publicAssets';
 import styles from './Tournaments.module.css';
-
-interface Profile {
-  user_id: string;
-  username: string;
-  tag: string;
-  elo: number;
-  avatar_url: string | null;
-}
 
 interface TournamentRow {
   id: number;
@@ -184,7 +176,7 @@ function statusClass(tournament: TournamentRow, rowKind: PageConfig['rowKind']) 
 
 export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: TournamentPageMode }) {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const config = PAGE_CONFIG[mode];
   const [tournaments, setTournaments] = useState<TournamentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -195,7 +187,6 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
   const [alivePlayersByTournament, setAlivePlayersByTournament] = useState<Record<number, number>>({});
   const [dismissedEliminations, setDismissedEliminations] = useState<Set<number>>(new Set());
   const [cachedActiveTables, setCachedActiveTables] = useState<ActiveTableEntry[]>([]);
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [openProfile, setOpenProfile] = useState(false);
 
   const activeTournaments = useMemo(
@@ -301,19 +292,9 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
     if (!user) {
       setDismissedEliminations(new Set());
       setCachedActiveTables([]);
-      setProfile(null);
       setOpenProfile(false);
       return;
     }
-
-    supabase
-      .from('profiles')
-      .select('user_id, username, tag, elo, avatar_url')
-      .eq('user_id', user.id)
-      .single()
-      .then(({ data, error }) => {
-        if (!error) setProfile(data as Profile);
-      });
 
     const unwatchDismissed = watchDismissedEliminatedTables(user.id, setDismissedEliminations);
     const unwatchActiveTables = watchActiveTablesForUser(user.id, setCachedActiveTables);
@@ -408,7 +389,7 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
     });
 
     if (error || data?.error) {
-      setFeedback(config.joinErrorText);
+      setFeedback(data?.error || error?.message || config.joinErrorText);
       return;
     }
 
@@ -463,7 +444,7 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
     <div className={`${styles.page} ${config.pageClassName ?? ''}`} data-name={config.dataName}>
       <aside className={styles.sidebar}>
         <button className={styles.logoWrap} onClick={() => navigate('/home')} aria-label="Accueil">
-          <img src={publicAsset('/figma/main-page-nothing/pkr-logo-black-bg.png')} alt="PKR" className={styles.logoImg} />
+          <img src="/figma/main-page-nothing/pkr-logo-black-bg.png" alt="PKR" className={styles.logoImg} />
         </button>
 
         <nav className={styles.modeList}>
@@ -481,10 +462,15 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
 
         <div className={styles.bottomIcons}>
           <button className={styles.iconBtn} onClick={() => navigate('/settings')} title="Paramètres">
-            <img src={publicAsset('/figma/main-page-nothing/settings-icon.svg')} alt="" className={styles.iconImg} />
+            <img src="/figma/main-page-nothing/settings-icon.svg" alt="" className={styles.iconImg} />
           </button>
           <button className={styles.iconBtn} onClick={() => setOpenProfile(true)} title="Profil">
-            <img src={publicAsset('/figma/main-page-nothing/profile-icon.svg')} alt="" className={styles.iconImg} />
+            <PlayerAvatar
+              name={profile?.username ?? user?.email}
+              avatarUrl={profile?.avatar_url}
+              className={styles.profileAvatar}
+              tone="dark"
+            />
           </button>
         </div>
       </aside>

@@ -5,18 +5,9 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import styles from './Stats.module.css';
 
-interface ProfileRow {
-  user_id: string;
-  username: string;
-  tag: string | null;
-  elo: number;
-  avatar_url: string | null;
-}
-
 export default function Stats() {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
-  const [profile, setProfile] = useState<ProfileRow | null>(null);
+  const { user, loading, profile, profileLoading } = useAuth();
   const [rank, setRank] = useState<number | null>(null);
   const [error, setError] = useState('');
 
@@ -27,24 +18,16 @@ export default function Stats() {
       return;
     }
 
+    if (profileLoading) return;
+
+    if (!profile) {
+      setError('Impossible de charger les statistiques.');
+      return;
+    }
+
     let cancelled = false;
 
-    const fetchStatsProfile = async () => {
-      const { data, error: profileError } = await supabase
-        .from('profiles')
-        .select('user_id, username, tag, elo, avatar_url')
-        .eq('user_id', user.id)
-        .single();
-
-      if (cancelled) return;
-
-      if (profileError || !data) {
-        setError('Impossible de charger les statistiques.');
-        return;
-      }
-
-      const currentProfile = data as ProfileRow;
-      setProfile(currentProfile);
+    const fetchRank = async () => {
       setError('');
 
       const { data: leaderboardRows } = await supabase
@@ -54,16 +37,16 @@ export default function Stats() {
 
       if (cancelled) return;
 
-      const position = (leaderboardRows ?? []).findIndex(row => row.user_id === currentProfile.user_id);
+      const position = (leaderboardRows ?? []).findIndex(row => row.user_id === profile.user_id);
       setRank(position >= 0 ? position + 1 : null);
     };
 
-    fetchStatsProfile();
+    fetchRank();
 
     return () => {
       cancelled = true;
     };
-  }, [loading, navigate, user]);
+  }, [loading, navigate, profile, profileLoading, user]);
 
   const statsProfile = useMemo<PlayerStatsProfile | null>(() => {
     if (!profile) return null;

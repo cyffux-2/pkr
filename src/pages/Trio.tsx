@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import LocalLobbyPlayerCount from '../components/LocalLobbyPlayerCount';
+import LocalTournamentLeaderboard from '../components/LocalTournamentLeaderboard';
+import PlayerAvatar from '../components/PlayerAvatar';
 import { TournamentTableTab } from '../components/TournamentTableTab';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -12,18 +15,9 @@ import { supabase } from '../lib/supabase';
 import { ensureTableStateCache } from '../lib/tableStateCache';
 import { ensureTournamentTableConnection, getCachedTournamentTable } from '../lib/tournamentConnections';
 import { ProfilePopup } from './ProfilModule/ProfilePopup';
-import { publicAsset } from '../lib/publicAssets';
 import styles from './Tournaments.module.css';
 
 type TrioChoice = 'normal' | 'turbo';
-
-interface Profile {
-  user_id: string;
-  username: string;
-  tag: string;
-  elo: number;
-  avatar_url: string | null;
-}
 
 interface ActiveTournament {
   id: number;
@@ -42,8 +36,7 @@ const GAME_MODES = [
 
 export default function Trio() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const { user, profile } = useAuth();
   const [openProfile, setOpenProfile] = useState(false);
   const [activeTournaments, setActiveTournaments] = useState<ActiveTournament[]>([]);
   const [cachedActiveTables, setCachedActiveTables] = useState<ActiveTableEntry[]>([]);
@@ -56,22 +49,12 @@ export default function Trio() {
 
   useEffect(() => {
     if (!user) {
-      setProfile(null);
       setOpenProfile(false);
       setActiveTournaments([]);
       setCachedActiveTables([]);
       setDismissedEliminations(new Set());
       return;
     }
-
-    supabase
-      .from('profiles')
-      .select('user_id, username, tag, elo, avatar_url')
-      .eq('user_id', user.id)
-      .single()
-      .then(({ data, error }) => {
-        if (!error) setProfile(data as Profile);
-      });
 
     let cancelled = false;
     const fetchActiveTournaments = async () => {
@@ -248,7 +231,7 @@ export default function Trio() {
     <div className={`${styles.page} ${styles.pageTrio}`} data-name="Main Page - expresso">
       <aside className={styles.sidebar}>
         <button className={styles.logoWrap} onClick={() => navigate('/home')} aria-label="Accueil">
-          <img src={publicAsset('/figma/main-page-nothing/pkr-logo-black-bg.png')} alt="PKR" className={styles.logoImg} />
+          <img src="/figma/main-page-nothing/pkr-logo-black-bg.png" alt="PKR" className={styles.logoImg} />
         </button>
 
         <nav className={styles.modeList}>
@@ -266,10 +249,15 @@ export default function Trio() {
 
         <div className={styles.bottomIcons}>
           <button className={styles.iconBtn} onClick={() => navigate('/settings')} title="Paramètres">
-            <img src={publicAsset('/figma/main-page-nothing/settings-icon.svg')} alt="" className={styles.iconImg} />
+            <img src="/figma/main-page-nothing/settings-icon.svg" alt="" className={styles.iconImg} />
           </button>
           <button className={styles.iconBtn} onClick={() => setOpenProfile(true)} title="Profil">
-            <img src={publicAsset('/figma/main-page-nothing/profile-icon.svg')} alt="" className={styles.iconImg} />
+            <PlayerAvatar
+              name={profile?.username ?? user?.email}
+              avatarUrl={profile?.avatar_url}
+              className={styles.profileAvatar}
+              tone="dark"
+            />
           </button>
         </div>
       </aside>
@@ -296,6 +284,10 @@ export default function Trio() {
           </div>
           <div className={styles.trioTriangle} aria-hidden="true">
             <span />
+          </div>
+          <div className={styles.modeInfoStack}>
+            <LocalLobbyPlayerCount mode="trio" />
+            <LocalTournamentLeaderboard mode="trio" title="Triple" />
           </div>
         </section>
 

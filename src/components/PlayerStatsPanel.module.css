@@ -56,6 +56,33 @@
   background: radial-gradient(circle, rgba(255, 185, 46, 0.28), transparent 66%);
 }
 
+.pagePanel .glowOrange,
+.pagePanel .glowBlue,
+.pagePanel .glowGold {
+  position: fixed;
+}
+
+.pagePanel .glowOrange {
+  width: min(660px, 52vw);
+  top: clamp(30px, 12vh, 120px);
+  left: clamp(24px, 7vw, 120px);
+  transform: translate(-42%, -46%);
+}
+
+.pagePanel .glowBlue {
+  width: min(860px, 68vw);
+  right: clamp(80px, 16vw, 260px);
+  bottom: clamp(0px, 5vh, 72px);
+  transform: translate(16%, 34%);
+}
+
+.pagePanel .glowGold {
+  width: min(580px, 46vw);
+  top: clamp(18px, 7vh, 82px);
+  right: clamp(18px, 5vw, 96px);
+  transform: translate(26%, -48%);
+}
+
 .closeButton {
   position: absolute;
   top: 24px;
@@ -444,28 +471,9 @@
   gap: 18px;
 }
 
-.avatar {
-  width: 78px;
-  height: 78px;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  flex: 0 0 auto;
-  border: 1px solid rgba(255, 158, 46, 0.35);
-  border-radius: 999px;
-  background: radial-gradient(circle at 35% 25%, rgba(255, 158, 46, 0.45), rgba(77, 45, 15, 0.95));
-}
-
-.avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.avatar span {
-  color: #fff;
-  font-size: 24px;
-  font-weight: 900;
+.profileAvatar {
+  --player-avatar-size: 78px;
+  --player-avatar-font-size: 24px;
 }
 
 .identityText {
@@ -528,6 +536,18 @@
   padding: 18px 22px;
 }
 
+.statsGrid {
+  grid-column: span 3;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.kpiCardCompact {
+  min-height: 75px;
+  padding: 12px 16px;
+}
+
 .kpiCard span {
   color: #a8adbd;
   font-size: 13px;
@@ -541,6 +561,18 @@
   font-size: clamp(25px, 2.5vw, 32px);
   font-weight: 900;
   line-height: 1;
+}
+
+.kpiCardCompact span {
+  display: block;
+  min-height: 2.15em;
+  font-size: 11px;
+  line-height: 1.08;
+}
+
+.kpiCardCompact strong {
+  margin-top: 5px;
+  font-size: clamp(18px, 1.75vw, 23px);
 }
 
 .achievementsPanel,
@@ -826,6 +858,10 @@
   .profileCard {
     grid-column: span 2;
   }
+
+  .statsGrid {
+    grid-column: span 2;
+  }
 }
 
 @media (max-width: 720px) {
@@ -874,9 +910,14 @@
   }
 
   .profileCard,
+  .statsGrid,
   .achievementsPanel,
   .progressPanel {
     grid-column: span 1;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -890,12 +931,16 @@
     align-items: flex-start;
   }
 
-  .avatar {
-    width: 64px;
-    height: 64px;
+  .profileAvatar {
+    --player-avatar-size: 64px;
+    --player-avatar-font-size: 22px;
   }
 
   .rankBlock {
+    grid-template-columns: 1fr;
+  }
+
+  .statsGrid {
     grid-template-columns: 1fr;
   }
 

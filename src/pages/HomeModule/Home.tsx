@@ -10,18 +10,20 @@ import {
   watchActiveTablesForUser,
   type ActiveTableEntry,
 } from '../../lib/activeTablesRegistry';
+import { formatLiveStatNumber, useLiveSiteStats } from '../../lib/useLiveSiteStats';
+import PlayerAvatar from '../../components/PlayerAvatar';
 import { TournamentTableTab } from '../../components/TournamentTableTab';
 import { ProfilePopup } from '../ProfilModule/ProfilePopup';
-import { publicAsset } from '../../lib/publicAssets';
 import styles from './Home.module.css';
 
-interface Profile {
-  user_id:     string;
-  username:   string;
-  tag:        string;
-  elo:        number;
-  avatar_url: string | null;
-}
+type CarouselImageContext = {
+  keys(): string[];
+  (id: string): string | { default: string };
+};
+
+declare const require: {
+  context(directory: string, useSubdirectories: boolean, regExp: RegExp): CarouselImageContext;
+};
 
 interface ActiveTournament {
   id:              number;
@@ -31,6 +33,11 @@ interface ActiveTournament {
   tableId?:        number;
 }
 
+interface CarouselImage {
+  src: string;
+  alt: string;
+}
+
 const GAME_MODES = [
   { label: 'Tournoi', path: '/tournaments', nodeName: 'Tournament' },
   { label: 'Sit&GO',  path: '/sng', nodeName: 'Sit&go' },
@@ -38,30 +45,32 @@ const GAME_MODES = [
   { label: 'HeadUp',  path: '/headup', nodeName: 'HeadUp' },
 ];
 
+const HOME_CAROUSEL_IMAGES = loadHomeCarouselImages();
+
 export default function Home() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
-  const [profile,      setProfile]      = useState<Profile | null>(null);
   const [popupOpen,    setPopupOpen]    = useState(false);
   const [activeTournaments, setActiveTournaments] = useState<ActiveTournament[]>([]);
   const [cachedActiveTables, setCachedActiveTables] = useState<ActiveTableEntry[]>([]);
   const [dismissedEliminations, setDismissedEliminations] = useState<Set<number>>(new Set());
   const [selectedTableTournamentId, setSelectedTableTournamentId] = useState<number | null>(null);
   const [assignedTableIds, setAssignedTableIds] = useState<Record<number, number>>({});
+  const { stats: homeStats, loading: homeStatsLoading } = useLiveSiteStats();
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const carouselImageCount = HOME_CAROUSEL_IMAGES.length;
+  const carouselImageIndex = carouselImageCount > 0 ? carouselIndex % carouselImageCount : 0;
 
-  // Charge le profil depuis la table profiles
   useEffect(() => {
-    if (!user) return;
-    supabase
-      .from('profiles')
-      .select('user_id, username, tag, elo, avatar_url')
-      .eq('user_id', user.id)
-      .single()
-      .then(({ data }) => {
-        if (data) setProfile(data as Profile);
-      });
-  }, [user]);
+    if (carouselImageCount <= 1) return;
+
+    const interval = window.setInterval(() => {
+      setCarouselIndex(current => (current + 1) % carouselImageCount);
+    }, 5500);
+
+    return () => window.clearInterval(interval);
+  }, [carouselImageCount]);
 
   useEffect(() => {
     if (!user) {
@@ -162,8 +171,15 @@ export default function Home() {
     setup();
   }, [visibleActiveTournaments, user]);
 
-  const avatarUrl = profile?.avatar_url ?? null;
-  const initiale  = profile?.username?.[0]?.toUpperCase() ?? user?.email?.[0]?.toUpperCase() ?? '?';
+  const showPreviousCarouselImage = () => {
+    if (carouselImageCount <= 1) return;
+    setCarouselIndex(current => (current - 1 + carouselImageCount) % carouselImageCount);
+  };
+
+  const showNextCarouselImage = () => {
+    if (carouselImageCount <= 1) return;
+    setCarouselIndex(current => (current + 1) % carouselImageCount);
+  };
 
   const openTournamentTable = async (tournament: ActiveTournament) => {
     if (!user) {
@@ -207,7 +223,7 @@ export default function Home() {
       <aside className={styles.sidebar}>
         <div className={styles.logoWrap}>
           <img
-            src={publicAsset('/figma/main-page-nothing/pkr-logo-black-bg.png')}
+            src="/figma/main-page-nothing/pkr-logo-black-bg.png"
             alt="PKR"
             className={styles.logoImg}
           />
@@ -229,7 +245,7 @@ export default function Home() {
 
         <div className={styles.bottomIcons}>
           <button className={styles.iconBtn} onClick={() => navigate('/settings')} title="Paramètres">
-            <img src={publicAsset('/figma/main-page-nothing/settings-icon.svg')} alt="" className={styles.iconImg} />
+            <img src="/figma/main-page-nothing/settings-icon.svg" alt="" className={styles.iconImg} />
           </button>
 
           <button
@@ -237,19 +253,102 @@ export default function Home() {
             onClick={() => setPopupOpen(v => !v)}
             title="Profil"
           >
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="Avatar" className={styles.avatarImg} />
-            ) : (
-              <>
-                <img src={publicAsset('/figma/main-page-nothing/profile-icon.svg')} alt="" className={styles.iconImg} />
-                <span className={styles.avatarInitiale}>{initiale}</span>
-              </>
-            )}
+            <PlayerAvatar
+              name={profile?.username ?? user?.email}
+              avatarUrl={profile?.avatar_url}
+              className={styles.profileAvatar}
+              tone="dark"
+            />
           </button>
         </div>
       </aside>
 
-      <main className={styles.main} aria-label="Accueil PKR">
+      <main className={`${styles.main} ${visibleActiveTournaments.length > 0 ? styles.mainWithBottomBar : ''}`} aria-label="Accueil PKR">
+        <div className={styles.homeContent}>
+          {HOME_CAROUSEL_IMAGES.length > 0 && (
+            <section className={styles.carouselPanel} aria-label="Informations PKR">
+              <div className={styles.carouselViewport}>
+                {HOME_CAROUSEL_IMAGES.map((image, index) => (
+                  <img
+                    key={image.src}
+                    src={image.src}
+                    alt={image.alt}
+                    className={`${styles.carouselImage} ${index === carouselImageIndex ? styles.carouselImageActive : ''}`}
+                    draggable={false}
+                  />
+                ))}
+              </div>
+
+              {carouselImageCount > 1 && (
+                <div className={styles.carouselControls}>
+                  <button
+                    type="button"
+                    className={styles.carouselArrow}
+                    onClick={showPreviousCarouselImage}
+                    aria-label="Information precedente"
+                  >
+                    &lt;
+                  </button>
+
+                  <div className={styles.carouselDots} aria-label="Choisir une information">
+                    {HOME_CAROUSEL_IMAGES.map((image, index) => (
+                      <button
+                        key={image.src}
+                        type="button"
+                        className={`${styles.carouselDot} ${index === carouselImageIndex ? styles.carouselDotActive : ''}`}
+                        onClick={() => setCarouselIndex(index)}
+                        aria-label={`Information ${index + 1}`}
+                      />
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    className={styles.carouselArrow}
+                    onClick={showNextCarouselImage}
+                    aria-label="Information suivante"
+                  >
+                    &gt;
+                  </button>
+                </div>
+              )}
+            </section>
+          )}
+
+        <section className={styles.statsPanel} aria-label="Statistiques PKR">
+          <div className={styles.statsHeader}>
+            <span className={styles.liveDot} aria-label="En direct" />
+          </div>
+
+          <div className={styles.statsGrid}>
+            <article className={`${styles.statCard} ${styles.statCardPrimary}`}>
+              <span>Joueurs en jeu</span>
+              <strong>{homeStatsLoading ? '...' : formatLiveStatNumber(homeStats.playersInGame)}</strong>
+            </article>
+
+            <article className={styles.statCard}>
+              <span>Tables actives</span>
+              <strong>{homeStatsLoading ? '...' : formatLiveStatNumber(homeStats.activeTables)}</strong>
+            </article>
+
+            <article className={styles.statCard}>
+              <span>Tournois ouverts</span>
+              <strong>{homeStatsLoading ? '...' : formatLiveStatNumber(homeStats.openTournaments)}</strong>
+            </article>
+
+            <article className={styles.statCard}>
+              <span>Inscriptions cette semaine</span>
+              <strong>{homeStatsLoading ? '...' : formatLiveStatNumber(homeStats.weeklyRegistrations)}</strong>
+            </article>
+
+            <article className={styles.statCard}>
+              <span>Parties terminées cette semaine</span>
+              <strong>{homeStatsLoading ? '...' : formatLiveStatNumber(homeStats.completedTournamentsThisWeek)}</strong>
+            </article>
+          </div>
+        </section>
+        </div>
+
         {visibleActiveTournaments.length > 0 && (
           <div className={styles.bottomBar}>
             <div className={styles.tournamentTabs}>
@@ -305,4 +404,29 @@ function mergeActiveTournamentTabs(
     if (!left.start_date || !right.start_date) return left.id - right.id;
     return new Date(left.start_date).getTime() - new Date(right.start_date).getTime();
   });
+}
+
+function loadHomeCarouselImages(): CarouselImage[] {
+  const context = require.context('../../assets/home-carousel', false, /\.(png|jpe?g|webp|avif|gif|svg)$/i);
+  const collator = new Intl.Collator('fr-FR', { numeric: true, sensitivity: 'base' });
+
+  return context.keys().sort(collator.compare).map(key => {
+    const loaded = context(key);
+    const src = typeof loaded === 'string' ? loaded : loaded.default;
+    return {
+      src,
+      alt: formatCarouselImageAlt(key),
+    };
+  }).filter(image => Boolean(image.src));
+}
+
+function formatCarouselImageAlt(key: string) {
+  const name = key
+    .replace(/^\.\//, '')
+    .replace(/\.[^.]+$/, '')
+    .replace(/^\d+[-_ ]*/, '')
+    .replace(/[-_]+/g, ' ')
+    .trim();
+
+  return name ? `Information PKR ${name}` : 'Information PKR';
 }

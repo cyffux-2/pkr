@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { supabase } from '../lib/supabase';
+import PlayerAvatar from './PlayerAvatar';
 import styles from './PlayerStatsPanel.module.css';
 
 export interface PlayerStatsProfile {
@@ -62,13 +63,18 @@ type TournamentResultRow = {
   players: TournamentResultPlayerRow[] | null;
   winner_ids: string[] | null;
   elo_delta: number[] | null;
+  player_count: number | null;
   tournament_finished_at: string;
+  tournament_name: string | null;
 };
 
 type PlayerTournamentStats = {
   gamesPlayed: number;
   gamesWon: number;
   weeklyEloGain: number;
+  headupWins: number;
+  trioWins: number;
+  biggestFieldBeaten: number;
 };
 
 type SearchProfileRow = {
@@ -79,7 +85,7 @@ type SearchProfileRow = {
   avatar_url: string | null;
 };
 
-type LeaderboardKey = 'elo' | 'gamesPlayed' | 'gains' | 'gamesWon';
+type LeaderboardKey = 'elo' | 'gamesPlayed' | 'gains' | 'gamesWon' | 'biggestFieldBeaten';
 
 type LeaderboardEntry = {
   userId: string;
@@ -98,6 +104,7 @@ type LeaderboardAccumulator = {
   gamesPlayed: number;
   gains: number;
   gamesWon: number;
+  biggestFieldBeaten: number;
 };
 
 const DEFAULT_ACHIEVEMENTS: PlayerAchievement[] = [
@@ -114,6 +121,7 @@ const EMPTY_LEADERBOARDS: LeaderboardData = {
   gamesPlayed: [],
   gains: [],
   gamesWon: [],
+  biggestFieldBeaten: [],
 };
 
 const LEADERBOARD_LIMIT = 5;
@@ -226,12 +234,6 @@ function clampProgress(value: number | undefined, fallback: number) {
   return Math.max(0, Math.min(100, next));
 }
 
-function getInitials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const initials = parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : name.slice(0, 2);
-  return initials.toUpperCase();
-}
-
 function getCurrentWeekStart() {
   const now = new Date();
   const day = now.getDay() || 7;
@@ -275,6 +277,14 @@ function didPlayerWinTournament(row: TournamentResultRow, result: { player: Tour
   );
 }
 
+function isHeadupTournamentName(name: string | null | undefined) {
+  return /^headup\s+(normal|turbo)$/i.test((name ?? '').trim());
+}
+
+function isTrioTournamentName(name: string | null | undefined) {
+  return /^triple\s+(normal|turbo)$/i.test((name ?? '').trim());
+}
+
 function sortLeaderboard(entries: LeaderboardAccumulator[], key: LeaderboardKey) {
   return [...entries]
     .sort((left, right) => right[key] - left[key])
@@ -285,6 +295,14 @@ function sortLeaderboard(entries: LeaderboardAccumulator[], key: LeaderboardKey)
       avatarUrl: entry.avatarUrl,
       value: entry[key],
     }));
+}
+
+function getLeaderboardRank(entries: LeaderboardEntry[], index: number) {
+  const entry = entries[index];
+  if (!entry) return index + 1;
+
+  const firstSameValueIndex = entries.findIndex(candidate => candidate.value === entry.value);
+  return firstSameValueIndex >= 0 ? firstSameValueIndex + 1 : index + 1;
 }
 
 export default function PlayerStatsPanel({ profile, metrics, mode = 'page', onClose }: Props) {
@@ -307,7 +325,6 @@ export default function PlayerStatsPanel({ profile, metrics, mode = 'page', onCl
   const [tournamentStats, setTournamentStats] = useState<PlayerTournamentStats | null>(null);
   const rank = providedRank ?? fetchedRank;
   const level = activeProfile?.level || getPlayerLevelFromElo(activeProfile?.elo, rank);
-  const initials = getInitials(name);
   const achievements = activeMetrics?.achievements ?? DEFAULT_ACHIEVEMENTS;
   const unlockedAchievements = activeMetrics?.achievementsUnlocked ?? achievements.filter(item => item.unlocked).length;
   const totalAchievements = activeMetrics?.achievementsTotal ?? 42;
@@ -319,6 +336,9 @@ export default function PlayerStatsPanel({ profile, metrics, mode = 'page', onCl
   const gamesWon = activeMetrics?.gamesWon ?? activeMetrics?.winRate ?? tournamentStats?.gamesWon ?? '-';
   const gamesPlayed = activeMetrics?.gamesPlayed ?? tournamentStats?.gamesPlayed ?? '-';
   const gains = activeMetrics?.gains ?? tournamentStats?.weeklyEloGain ?? '-';
+  const headupWins = tournamentStats?.headupWins ?? '-';
+  const trioWins = tournamentStats?.trioWins ?? '-';
+  const biggestFieldBeaten = tournamentStats?.biggestFieldBeaten ?? '-';
   const rootClassName = `${styles.panel} ${mode === 'modal' ? styles.modalPanel : styles.pagePanel}`;
   const rankLabel = rank ? `#${rank}` : rankLoading ? '...' : 'Non classé';
   const rankProgress = getRankProgress(elo, rank, totalRankedPlayers);
@@ -375,7 +395,7 @@ export default function PlayerStatsPanel({ profile, metrics, mode = 'page', onCl
 
     supabase
       .from('tournament_results')
-      .select('players, winner_ids, elo_delta, tournament_finished_at')
+      .select('players, winner_ids, elo_delta, player_count, tournament_finished_at, tournament_name')
       .filter('players', 'cs', JSON.stringify([{ playerId: activeProfile.user_id }]))
       .order('tournament_finished_at', { ascending: false })
       .then(({ data, error }) => {
@@ -395,11 +415,18 @@ export default function PlayerStatsPanel({ profile, metrics, mode = 'page', onCl
           const finishedAt = new Date(result.row.tournament_finished_at).getTime();
           return finishedAt >= weekStartMs ? total + getPlayerResultEloDelta(result.row, result.result) : total;
         }, 0);
+        const winningResults = playerResults.filter(result => didPlayerWinTournament(result.row, result.result, activeProfile.user_id as string));
 
         setTournamentStats({
           gamesPlayed: playerResults.length,
-          gamesWon: playerResults.filter(result => didPlayerWinTournament(result.row, result.result, activeProfile.user_id as string)).length,
+          gamesWon: winningResults.length,
           weeklyEloGain,
+          headupWins: winningResults.filter(result => isHeadupTournamentName(result.row.tournament_name)).length,
+          trioWins: winningResults.filter(result => isTrioTournamentName(result.row.tournament_name)).length,
+          biggestFieldBeaten: winningResults.reduce((max, result) => {
+            const playerCount = normalizeNumber(result.row.player_count) ?? getResultPlayers(result.row.players).length;
+            return Math.max(max, playerCount);
+          }, 0),
         });
       });
 
@@ -451,7 +478,7 @@ export default function PlayerStatsPanel({ profile, metrics, mode = 'page', onCl
         .order('elo', { ascending: false }),
       supabase
         .from('tournament_results')
-        .select('players, winner_ids, elo_delta, tournament_finished_at')
+        .select('players, winner_ids, elo_delta, player_count, tournament_finished_at')
         .order('tournament_finished_at', { ascending: false })
         .limit(500),
     ]).then(([profilesResponse, resultsResponse]) => {
@@ -486,6 +513,7 @@ export default function PlayerStatsPanel({ profile, metrics, mode = 'page', onCl
           gamesPlayed: 0,
           gains: 0,
           gamesWon: 0,
+          biggestFieldBeaten: 0,
         };
         entries.set(userId, entry);
         return entry;
@@ -508,6 +536,8 @@ export default function PlayerStatsPanel({ profile, metrics, mode = 'page', onCl
           entry.gains += getPlayerResultEloDelta(row, result);
           if (didPlayerWinTournament(row, result, userId)) {
             entry.gamesWon += 1;
+            const playerCount = normalizeNumber(row.player_count) ?? getResultPlayers(row.players).length;
+            entry.biggestFieldBeaten = Math.max(entry.biggestFieldBeaten, playerCount);
           }
         });
       });
@@ -518,6 +548,7 @@ export default function PlayerStatsPanel({ profile, metrics, mode = 'page', onCl
         gamesPlayed: sortLeaderboard(allEntries, 'gamesPlayed'),
         gains: sortLeaderboard(allEntries, 'gains'),
         gamesWon: sortLeaderboard(allEntries, 'gamesWon'),
+        biggestFieldBeaten: sortLeaderboard(allEntries, 'biggestFieldBeaten'),
       });
       setLeaderboardLoading(false);
     });
@@ -602,6 +633,7 @@ export default function PlayerStatsPanel({ profile, metrics, mode = 'page', onCl
                     <LeaderboardCard title="Parties jouées" entries={leaderboards.gamesPlayed} />
                     <LeaderboardCard title="Gain ELO" entries={leaderboards.gains} signed />
                     <LeaderboardCard title="Parties gagnées" entries={leaderboards.gamesWon} />
+                    <LeaderboardCard title="Plus gros field battu" entries={leaderboards.biggestFieldBeaten} />
                     <LeaderboardCard title="Succès" entries={[]} inDevelopment />
                   </div>
                 </div>
@@ -659,13 +691,12 @@ export default function PlayerStatsPanel({ profile, metrics, mode = 'page', onCl
       <div className={styles.contentGrid}>
         <article className={`${styles.card} ${styles.profileCard}`}>
           <div className={styles.identityRow}>
-            <div className={styles.avatar}>
-              {activeProfile?.avatar_url ? (
-                <img src={activeProfile.avatar_url} alt="" />
-              ) : (
-                <span>{initials}</span>
-              )}
-            </div>
+            <PlayerAvatar
+              name={name}
+              avatarUrl={activeProfile?.avatar_url}
+              className={styles.profileAvatar}
+              tone="warm"
+            />
             <div className={styles.identityText}>
               <h2>{name}</h2>
               <p>Niveau : {level}</p>
@@ -679,14 +710,18 @@ export default function PlayerStatsPanel({ profile, metrics, mode = 'page', onCl
           </div>
         </article>
 
-        <StatsKpi title="Parties gagnées" value={formatStatsNumber(gamesWon)} />
-        <StatsKpi title="Parties jouées" value={formatStatsNumber(gamesPlayed)} />
-        <StatsKpi title="Gain ELO" value={formatSignedNumber(gains)} />
+        <div className={styles.statsGrid}>
+          <StatsKpi title="Parties gagnées" value={formatStatsNumber(gamesWon)} compact />
+          <StatsKpi title="Parties jouées" value={formatStatsNumber(gamesPlayed)} compact />
+          <StatsKpi title="Gain ELO" value={formatSignedNumber(gains)} compact />
+          <StatsKpi title="Victoire HeadUp" value={formatStatsNumber(headupWins)} compact />
+          <StatsKpi title="Victoire Trio" value={formatStatsNumber(trioWins)} compact />
+          <StatsKpi title="Plus gros field battu" value={formatStatsNumber(biggestFieldBeaten)} compact />
+        </div>
 
         <article className={`${styles.card} ${styles.achievementsPanel} ${styles.developmentHost}`}>
           <div className={styles.panelTitle}>
             <h2>Succès</h2>
-            <p>Badges et accomplissements débloqués</p>
           </div>
           <div className={styles.achievementGrid}>
             {achievements.map(achievement => (
@@ -708,7 +743,6 @@ export default function PlayerStatsPanel({ profile, metrics, mode = 'page', onCl
         <article className={`${styles.card} ${styles.progressPanel}`}>
           <div className={styles.panelTitle}>
             <h2>Progression</h2>
-            <p>Objectifs et statistiques avancées</p>
           </div>
           <RankProgressCard rankProgress={rankProgress} />
           <ProgressRow
@@ -756,9 +790,9 @@ function RankProgressCard({ rankProgress }: { rankProgress: ReturnType<typeof ge
   );
 }
 
-function StatsKpi({ title, value }: { title: string; value: string | number }) {
+function StatsKpi({ title, value, compact = false }: { title: string; value: string | number; compact?: boolean }) {
   return (
-    <article className={`${styles.card} ${styles.kpiCard}`}>
+    <article className={`${styles.card} ${styles.kpiCard} ${compact ? styles.kpiCardCompact : ''}`}>
       <span>{title}</span>
       <strong>{value}</strong>
     </article>
@@ -777,7 +811,7 @@ function LeaderboardCard({ title, entries, signed = false, inDevelopment = false
         <div className={styles.leaderboardRows}>
           {entries.map((entry, index) => (
             <div key={`${title}-${entry.userId}`} className={styles.leaderboardRow}>
-              <span className={styles.leaderboardRank}>#{index + 1}</span>
+              <span className={styles.leaderboardRank}>#{getLeaderboardRank(entries, index)}</span>
               <strong>{entry.username}</strong>
               <em>{signed ? formatSignedNumber(entry.value) : formatStatsNumber(entry.value)}</em>
             </div>

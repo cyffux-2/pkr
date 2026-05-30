@@ -26,6 +26,7 @@ type ActiveTournamentRow = {
   id: number;
   tournament_name: string;
   start_date: string;
+  max_players: number;
   players: string[];
 };
 
@@ -34,6 +35,7 @@ function tournamentFingerprint(tournament: ActiveTournamentRow) {
     tournament.id,
     tournament.tournament_name,
     tournament.start_date,
+    tournament.max_players,
     tournament.players.join(','),
   ].join(':');
 }
@@ -92,7 +94,7 @@ export function ActiveTablesPreloader() {
     const fetchActiveTournaments = async () => {
       const { data, error } = await supabase
         .from('tournaments')
-        .select('id, tournament_name, start_date, players')
+        .select('id, tournament_name, start_date, max_players, players')
         .contains('players', [userId])
         .order('start_date', { ascending: true });
 
@@ -236,6 +238,7 @@ export function ActiveTablesPreloader() {
             tableId,
             tournamentName: tournament?.tournament_name,
             startDate: tournament?.start_date,
+            maxPlayers: tournament?.max_players,
           };
         }),
     );

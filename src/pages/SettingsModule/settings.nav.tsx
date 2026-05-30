@@ -32,7 +32,7 @@ const IconLogout = () => (
 );
 
 export const NAV_ITEMS: NavItem[] = [
-  { id: 'utilisateur', label: 'Utilisateur',  sub: 'Profil, email, pseudo',      icon: <IconUser /> },
+  { id: 'utilisateur', label: 'Utilisateur',  sub: 'Profil, avatar, pseudo',     icon: <IconUser /> },
   { id: 'interface',   label: 'Interface',    sub: 'Thème, couleurs, affichage', icon: <IconInterface /> },
   { id: 'son',         label: 'Son',          sub: 'Volume, alertes, ambiance',  icon: <IconSound /> },
   { id: 'jeu',         label: 'Jeu',          sub: 'Mises auto et préférences',  icon: <IconGame /> },

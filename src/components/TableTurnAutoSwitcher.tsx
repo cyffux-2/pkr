@@ -39,6 +39,16 @@ function getPromptFingerprint(state: TableState | null | undefined) {
   return `${turnId}:${actionRequestId}:${stateRevision}`;
 }
 
+function getTournamentReturnPath(tableEntry: ActiveTableEntry, currentPathname: string) {
+  const name = tableEntry.tournamentName?.trim() ?? '';
+  if (/^triple\s+(normal|turbo)$/i.test(name)) return '/trio';
+  if (/^headup\s+(normal|turbo)$/i.test(name)) return '/headup';
+  if (typeof tableEntry.maxPlayers === 'number' && tableEntry.maxPlayers <= 8) return '/sng';
+  if (typeof tableEntry.maxPlayers === 'number' && tableEntry.maxPlayers > 8) return '/tournaments';
+  if (currentPathname === '/sng' || currentPathname === '/trio' || currentPathname === '/headup') return currentPathname;
+  return '/tournaments';
+}
+
 export function TableTurnAutoSwitcher() {
   const { user } = useAuth();
   const userId = user?.id;
@@ -104,10 +114,10 @@ export function TableTurnAutoSwitcher() {
     if (!userId) return;
 
     const currentTableId = parseGameTableId(location.pathname);
-    if (!currentTableId) return;
-
-    const currentState = tableStates[currentTableId] ?? getCachedTableState(currentTableId);
-    if (isHeroTurn(currentState, userId)) return;
+    if (currentTableId) {
+      const currentState = tableStates[currentTableId] ?? getCachedTableState(currentTableId);
+      if (isHeroTurn(currentState, userId)) return;
+    }
 
     const target = activeTables.find(table => {
       if (table.tableId === currentTableId) return false;
@@ -138,9 +148,10 @@ export function TableTurnAutoSwitcher() {
     navigate(`/game/${target.tableId}`, {
       state: {
         tournamentId: target.tournamentId,
+        returnTo: getTournamentReturnPath(target, location.pathname),
         autoTableSwitch: true,
         autoTableSwitchAt: now,
-        autoTableSwitchDirection: target.tableId > currentTableId ? 'right' : 'left',
+        autoTableSwitchDirection: currentTableId && target.tableId < currentTableId ? 'left' : 'right',
       },
     });
   }, [activeTables, location.pathname, navigate, tableStates, userId]);

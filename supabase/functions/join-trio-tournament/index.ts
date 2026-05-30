@@ -6,6 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const maxActiveTournaments = 4
+const registrationLimitError = `Tu ne peux pas rejoindre plus de ${maxActiveTournaments} tournois en simultané.`
+
 const trioConfigs = {
   normal: {
     name: 'Triple Normal',
@@ -33,6 +36,35 @@ async function createTournament(admin, config, timePerLevel) {
     })
     .select('*')
     .single()
+}
+
+async function countActiveTournamentsForUser(admin, userId) {
+  const { data, error } = await admin.rpc('count_active_tournament_registrations', {
+    target_player_id: userId,
+  })
+
+  if (error) throw error
+  return Number(data ?? 0)
+}
+
+async function getEliminatedTournamentIdsForUser(admin, tournamentIds, userId) {
+  if (tournamentIds.length === 0) return new Set()
+
+  const { data, error } = await admin
+    .from('tournament_eliminations')
+    .select('tournament_id')
+    .eq('player_id', userId)
+    .in('tournament_id', tournamentIds)
+
+  if (error) throw error
+  return new Set((data ?? []).map(row => Number(row.tournament_id)))
+}
+
+function normalizeJoinError(error) {
+  const message = error?.message ?? ''
+  return message.includes('Tournament registration limit reached')
+    ? registrationLimitError
+    : message || 'Tournament join failed'
 }
 
 Deno.serve(async (req) => {
@@ -85,14 +117,26 @@ Deno.serve(async (req) => {
       })
     }
 
+    const candidateIds = (candidates ?? []).map(candidate => candidate.id)
+    const eliminatedTournamentIds = await getEliminatedTournamentIdsForUser(admin, candidateIds, userId)
+
     let tournament = (candidates ?? []).find((candidate) => {
       const players = Array.isArray(candidate.players) ? candidate.players : []
       const expectedLevels = new Set([config.timePerLevel, config.legacyTimePerLevel])
       if (!expectedLevels.has(Number(candidate.time_per_level))) return false
-      return players.includes(userId) || players.length < 3
+      if (players.includes(userId)) return !eliminatedTournamentIds.has(candidate.id)
+      return players.length < 3
     })
 
     if (!tournament) {
+      const activeTournamentCount = await countActiveTournamentsForUser(admin, userId)
+      if (activeTournamentCount >= maxActiveTournaments) {
+        return new Response(JSON.stringify({ error: registrationLimitError }), {
+          status: 409,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
       let { data: created, error: createError } = await createTournament(admin, config, config.timePerLevel)
 
       if (createError && config.legacyTimePerLevel !== config.timePerLevel) {
@@ -113,8 +157,17 @@ Deno.serve(async (req) => {
 
     const players = Array.isArray(tournament.players) ? tournament.players : []
     if (players.includes(userId)) {
-      return new Response(JSON.stringify({ tournament }), {
-        status: 200,
+      const activeRegistration = !eliminatedTournamentIds.has(tournament.id)
+      return new Response(JSON.stringify(activeRegistration ? { tournament } : { error: 'Tu as déjà été éliminé de ce tournoi.' }), {
+        status: activeRegistration ? 200 : 409,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const activeTournamentCount = await countActiveTournamentsForUser(admin, userId)
+    if (activeTournamentCount >= maxActiveTournaments) {
+      return new Response(JSON.stringify({ error: registrationLimitError }), {
+        status: 409,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
@@ -134,7 +187,7 @@ Deno.serve(async (req) => {
       .single()
 
     if (updateError || !updated) {
-      return new Response(JSON.stringify({ error: updateError?.message ?? 'Tournament join failed' }), {
+      return new Response(JSON.stringify({ error: normalizeJoinError(updateError) }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })

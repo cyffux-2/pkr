@@ -11,7 +11,6 @@ import {
   sendTablePlayerReturn,
   watchCachedTableState,
   type TablePlayer,
-  type TableEvent,
   type TableState,
   type WireCard,
 } from '../lib/tableStateCache';
@@ -27,15 +26,28 @@ import {
   watchDismissedEliminatedTables,
 } from '../lib/eliminatedTournamentDismissals';
 import {
+  getActiveTablesForUser,
+  watchActiveTablesForUser,
+  type ActiveTableEntry,
+} from '../lib/activeTablesRegistry';
+import {
   getShortcutIdByKey,
   isEditableShortcutTarget,
   normalizeKeyboardEventKey,
   sanitizeShortcuts,
 } from '../lib/shortcuts';
 import { getLevelIndexFromPublishedBlinds } from '../lib/tournamentLevels';
+import PlayerAvatar from '../components/PlayerAvatar';
+import { TournamentTableTab } from '../components/TournamentTableTab';
 import styles from './Game.module.css';
+import tableTabStyles from './Tournaments.module.css';
 
 type PlayerAction = 'FOLD' | 'CHECK' | 'CALL' | 'RAISE';
+
+type PlayerAvatarProfile = {
+  user_id: string;
+  avatar_url: string | null;
+};
 
 const SEATS = [
   styles.seatLeft,
@@ -58,24 +70,6 @@ const ACTION_LABELS: Record<PlayerAction, string> = {
   CALL: 'Call',
   RAISE: 'Raise',
 };
-const ACTION_EVENT_LABELS: Record<string, string> = {
-  FOLD: 'se couche',
-  CHECK: 'check',
-  CALL: 'suit',
-  RAISE: 'relance',
-};
-const EVENT_FEED_TYPES = new Set([
-  'player_action',
-  'community_card',
-  'blind_posted',
-  'pot_update',
-  'showdown_reveal',
-  'showdown_payout',
-  'level_changed',
-  'level_pending',
-  'player_eliminated',
-]);
-
 function formatCard(card: WireCard | undefined) {
   if (!card) return '?';
 
@@ -124,6 +118,11 @@ function formatBet(value: number | undefined, bigBlind: number | undefined, unit
 
 function formatInputValue(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function formatExactInputValue(value: number) {
+  if (Number.isInteger(value)) return String(value);
+  return value.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
 }
 
 function getLuckMessage(value: number | undefined) {
@@ -189,67 +188,26 @@ function isTableEnded(status: TableState['game_status'] | undefined) {
   return status === 3 || status === '3' || status === 'ENDED';
 }
 
-function eventPlayerName(event: TableEvent, players: TablePlayer[], userId: string | undefined) {
-  if (event.playerId && event.playerId === userId) return 'Tu';
-  const player = players.find(candidate => candidate.id === event.playerId);
-  return player?.name ?? (typeof event.seatIndex === 'number' ? `Joueur ${event.seatIndex + 1}` : 'Un joueur');
-}
-
-function formatTableEvent(event: TableEvent | null | undefined, players: TablePlayer[], userId: string | undefined) {
-  if (!event) return '';
-
-  const name = eventPlayerName(event, players, userId);
-  switch (event.type) {
-    case 'action_prompt':
-      return event.playerId === userId ? 'À toi de jouer.' : `${name} réfléchit.`;
-    case 'player_action': {
-      const verb = event.action ? ACTION_EVENT_LABELS[event.action] ?? event.action.toLowerCase() : 'joue';
-      const suffix = event.action === 'RAISE' && typeof event.value === 'number' ? ` à ${formatChips(event.value)}` : '';
-      return `${name} ${verb}${suffix}.`;
-    }
-    case 'private_card':
-      return event.playerId === userId ? 'Carte reçue.' : `Carte distribuée à ${name}.`;
-    case 'community_card':
-      return `Carte commune ${event.boardCount ?? '-'}/5.`;
-    case 'blind_posted':
-      return `${name} poste ${event.action ?? 'blind'}${typeof event.value === 'number' ? ` ${formatChips(event.value)}` : ''}.`;
-    case 'pot_update':
-      return 'Pot mis à jour.';
-    case 'showdown_reveal':
-      return 'Showdown.';
-    case 'showdown_payout':
-      return 'Pot attribué.';
-    case 'hand_start':
-      return 'Nouvelle main.';
-    case 'hand_end':
-      return 'Main suivante.';
-    case 'level_changed':
-      return `Nouveau niveau ${event.SB ?? '-'}/${event.BB ?? '-'}.`;
-    case 'level_pending':
-      return `Niveau suivant ${event.SB ?? '-'}/${event.BB ?? '-'} après la main.`;
-    case 'player_eliminated':
-      return `${name} est éliminé.`;
-    case 'table_ended':
-      return 'Table terminée.';
-    case 'player_joined':
-      return `${name} rejoint la table.`;
-    case 'player_left':
-      return `${name} quitte la table.`;
-    default:
-      return '';
-  }
+function getTournamentReturnPath(tableEntry: ActiveTableEntry, fallback: string) {
+  const name = tableEntry.tournamentName?.trim() ?? '';
+  if (/^triple\s+(normal|turbo)$/i.test(name)) return '/trio';
+  if (/^headup\s+(normal|turbo)$/i.test(name)) return '/headup';
+  if (typeof tableEntry.maxPlayers === 'number' && tableEntry.maxPlayers <= 8) return '/sng';
+  if (typeof tableEntry.maxPlayers === 'number' && tableEntry.maxPlayers > 8) return '/tournaments';
+  return fallback;
 }
 
 export default function Game() {
   const navigate = useNavigate();
   const location = useLocation();
   const { tableId } = useParams();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, profile, updateCachedProfile } = useAuth();
 
   const [table, setTable] = useState<TableState | null>(null);
   const [privateCards, setPrivateCards] = useState<WireCard[]>([]);
   const [submittedActionRequestId, setSubmittedActionRequestId] = useState<number | null>(null);
   const [raiseTo, setRaiseTo] = useState('');
+  const [exactAllInRaiseTo, setExactAllInRaiseTo] = useState<number | null>(null);
   const [feedback, setFeedback] = useState('Connexion à la table...');
   const [selectedAction, setSelectedAction] = useState<PlayerAction | null>(null);
   const [stackUnit, setStackUnit] = useState<'BB' | 'C'>('BB');
@@ -259,12 +217,15 @@ export default function Game() {
   const [currentElo, setCurrentElo] = useState<number | null>(null);
   const [heroEliminated, setHeroEliminated] = useState(false);
   const [dismissedEliminations, setDismissedEliminations] = useState<Set<number>>(new Set());
-  const [eventFeed, setEventFeed] = useState<TableEvent[]>([]);
+  const [playerAvatarsById, setPlayerAvatarsById] = useState<Record<string, string | null>>({});
+  const [activeTables, setActiveTables] = useState<ActiveTableEntry[]>(() => (
+    user?.id ? getActiveTablesForUser(user.id) : []
+  ));
   const tableReceivedRef = useRef(false);
   const hadHeroSeatRef = useRef(false);
   const tableRef = useRef<TableState | null>(null);
+  const profileEloRef = useRef<number | null>(typeof profile?.elo === 'number' ? profile.elo : null);
   const pendingActionTimeoutRef = useRef<number | null>(null);
-  const seenEventIdsRef = useRef<Set<number>>(new Set());
 
   const numericTableId = Number(tableId);
   const routeState = location.state as {
@@ -290,8 +251,28 @@ export default function Game() {
       ? styles.pageAutoSwitchLeft
       : styles.pageAutoSwitchRight
     : '';
+  const switchableTables = useMemo(
+    () => activeTables
+      .filter(activeTable => Number.isFinite(activeTable.tableId) && !dismissedEliminations.has(activeTable.tableId))
+      .sort((left, right) => {
+        const leftTime = left.startDate ? new Date(left.startDate).getTime() : 0;
+        const rightTime = right.startDate ? new Date(right.startDate).getTime() : 0;
+        if (leftTime !== rightTime) return leftTime - rightTime;
+        return left.tableId - right.tableId;
+      }),
+    [activeTables, dismissedEliminations],
+  );
+  const showTableSwitcher = switchableTables.length >= 2;
   const potTotal = useMemo(() => table?.pot.reduce((sum, value) => sum + value, 0) ?? 0, [table]);
   const tablePlayers = useMemo(() => (table?.players.filter(Boolean) as TablePlayer[]) ?? [], [table]);
+  const tablePlayerIdsKey = useMemo(
+    () => tablePlayers
+      .map(player => player.id)
+      .filter((playerId): playerId is string => typeof playerId === 'string')
+      .sort()
+      .join('|'),
+    [tablePlayers],
+  );
   const heroSeatIndex = useMemo(() => table?.players.findIndex(player => player?.id === user?.id) ?? -1, [table, user]);
   const isHeroTurn = Boolean(table && heroSeatIndex >= 0 && table.playerToPlay === heroSeatIndex);
   const heroAbsent = Boolean(user?.id && (
@@ -318,6 +299,34 @@ export default function Game() {
   const tournamentWinnerIds = table?.tournamentWinnerIds ?? [];
   const finalWinnerIds = tournamentWinnerIds.length > 0 ? tournamentWinnerIds : winningPlayerIds;
   const activeActionRequestId = table?.actionRequestId ?? null;
+
+  useEffect(() => {
+    if (!tablePlayerIdsKey) {
+      setPlayerAvatarsById({});
+      return;
+    }
+
+    let cancelled = false;
+    const playerIds = tablePlayerIdsKey.split('|').filter(Boolean);
+
+    supabase
+      .from('profiles')
+      .select('user_id, avatar_url')
+      .in('user_id', playerIds)
+      .then(({ data, error }) => {
+        if (cancelled || error) return;
+
+        const nextAvatars = ((data ?? []) as PlayerAvatarProfile[]).reduce<Record<string, string | null>>((avatars, profile) => {
+          avatars[profile.user_id] = profile.avatar_url;
+          return avatars;
+        }, {});
+        setPlayerAvatarsById(nextAvatars);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tablePlayerIdsKey]);
   const promptAlreadySubmitted = activeActionRequestId !== null && submittedActionRequestId === activeActionRequestId;
   const canAttemptAction = isHeroTurn && !promptAlreadySubmitted && !heroAbsent;
   const backendActionDeadline = typeof table?.actionDeadlineAt === 'number' ? table.actionDeadlineAt : null;
@@ -343,10 +352,6 @@ export default function Game() {
   const actionProgress = actionTimerUsesTimebank
     ? Math.max(0, Math.min(1, actionTimebankLeftMs / Math.max(1, activeActionTimebankMs)))
     : Math.max(0, Math.min(1, actionBaseTimeLeftMs / Math.max(1, activeActionBaseTimeMs)));
-  const lastEventFeedback = useMemo(
-    () => formatTableEvent(table?.lastEvent, tablePlayers, user?.id),
-    [table?.lastEvent, tablePlayers, user?.id],
-  );
   const heroEloResult = user?.id ? table?.eloResults?.[user.id] : undefined;
   const displayedInitialElo = heroEloResult?.initialElo ?? initialElo;
   const displayedCurrentElo = heroEloResult?.newElo ?? currentElo;
@@ -416,18 +421,26 @@ export default function Game() {
   const formatRaiseInputFromChips = useCallback((amount: number) => {
     return stackUnit === 'BB' ? formatInputValue(amount / bigBlind) : formatInputValue(amount);
   }, [bigBlind, stackUnit]);
+  const formatExactRaiseInputFromChips = useCallback((amount: number) => {
+    return stackUnit === 'BB' ? formatExactInputValue(amount / bigBlind) : formatInputValue(amount);
+  }, [bigBlind, stackUnit]);
   const parseRaiseInputToChips = useCallback(() => {
     const parsed = Number.parseFloat(raiseTo.replace(',', '.'));
     if (!Number.isFinite(parsed) || parsed <= 0) return null;
     return stackUnit === 'BB' ? Math.round(parsed * bigBlind) : Math.round(parsed);
   }, [bigBlind, raiseTo, stackUnit]);
+  const selectAllInRaise = useCallback(() => {
+    const amount = getAllInRaiseToChips();
+    setExactAllInRaiseTo(amount);
+    setRaiseTo(formatExactRaiseInputFromChips(amount));
+  }, [formatExactRaiseInputFromChips, getAllInRaiseToChips]);
   const toggleStackUnit = () => {
-    const currentChips = parseRaiseInputToChips();
+    const currentChips = exactAllInRaiseTo ?? parseRaiseInputToChips();
     setStackUnit(current => {
       const next = current === 'BB' ? 'C' : 'BB';
       if (currentChips) {
         const nextValue = next === 'BB' ? currentChips / bigBlind : currentChips;
-        setRaiseTo(formatInputValue(nextValue));
+        setRaiseTo(exactAllInRaiseTo !== null ? formatExactInputValue(nextValue) : formatInputValue(nextValue));
       }
       return next;
     });
@@ -447,6 +460,10 @@ export default function Game() {
     tableRef.current = table;
   }, [table]);
 
+  useEffect(() => {
+    profileEloRef.current = typeof profile?.elo === 'number' ? profile.elo : null;
+  }, [profile?.elo]);
+
   useEffect(() => () => {
     clearPendingActionTimeout();
   }, [clearPendingActionTimeout]);
@@ -461,37 +478,23 @@ export default function Game() {
   }, [user]);
 
   useEffect(() => {
+    if (!user) {
+      setActiveTables([]);
+      return;
+    }
+
+    setActiveTables(getActiveTablesForUser(user.id));
+    return watchActiveTablesForUser(user.id, setActiveTables);
+  }, [user]);
+
+  useEffect(() => {
     clearPendingActionTimeout();
     hadHeroSeatRef.current = false;
     setPrivateCards([]);
     setHeroEliminated(false);
     setCurrentElo(null);
     setSubmittedActionRequestId(null);
-    setEventFeed([]);
-    seenEventIdsRef.current.clear();
   }, [clearPendingActionTimeout, numericTableId]);
-
-  useEffect(() => {
-    const events = table?.events ?? (table?.lastEvent ? [table.lastEvent] : []);
-    if (events.length === 0) return;
-
-    setEventFeed(current => {
-      const next = [...current];
-      let changed = false;
-
-      for (const event of events) {
-        if (typeof event.id !== 'number' || seenEventIdsRef.current.has(event.id)) continue;
-
-        seenEventIdsRef.current.add(event.id);
-        if (!EVENT_FEED_TYPES.has(event.type)) continue;
-
-        next.push(event);
-        changed = true;
-      }
-
-      return changed ? next.slice(-8) : current;
-    });
-  }, [table?.events, table?.lastEvent]);
 
   useEffect(() => {
     if (!user || !Number.isFinite(numericTableId)) {
@@ -512,32 +515,16 @@ export default function Game() {
 
   useEffect(() => {
     if (!user) return;
-    let cancelled = false;
-    setInitialElo(null);
-    setCurrentElo(null);
+    const cachedElo = profileEloRef.current;
+    setInitialElo(cachedElo);
+    setCurrentElo(cachedElo);
+  }, [numericTableId, user]);
 
-    const fetchInitialElo = async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('elo')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (!cancelled) {
-        const elo = (data as { elo?: number } | null)?.elo;
-        if (typeof elo === 'number') {
-          setInitialElo(elo);
-          setCurrentElo(elo);
-        }
-      }
-    };
-
-    void fetchInitialElo();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
+  useEffect(() => {
+    if (!user || typeof profile?.elo !== 'number') return;
+    setInitialElo(current => current ?? profile.elo);
+    setCurrentElo(current => current ?? profile.elo);
+  }, [profile?.elo, user]);
 
   useEffect(() => {
     if (!heroEloResult) return;
@@ -593,6 +580,7 @@ export default function Game() {
       const elo = (data as { elo?: number } | null)?.elo;
       if (typeof elo === 'number') {
         setCurrentElo(elo);
+        updateCachedProfile({ elo });
         if (initialElo !== null && elo !== initialElo && interval) {
           window.clearInterval(interval);
           interval = undefined;
@@ -612,7 +600,7 @@ export default function Game() {
       cancelled = true;
       if (interval) window.clearInterval(interval);
     };
-  }, [heroEliminated, heroWonTournament, initialElo, user]);
+  }, [heroEliminated, heroWonTournament, initialElo, updateCachedProfile, user]);
 
   useEffect(() => {
     setSubmittedActionRequestId(current => {
@@ -765,13 +753,14 @@ export default function Game() {
 
     if (action === 'CALL') payload.amount = 0;
     if (action === 'RAISE') {
-      const parsed = raiseTo.trim() === '' ? getMinRaiseToChips() : parseRaiseInputToChips();
+      const parsed = exactAllInRaiseTo ?? (raiseTo.trim() === '' ? getMinRaiseToChips() : parseRaiseInputToChips());
       if (!parsed) {
         setFeedback('Entre un montant de relance valide.');
         return;
       }
       if (raiseTo.trim() === '') setRaiseTo(formatRaiseInputFromChips(parsed));
       payload.raiseTo = parsed;
+      if (exactAllInRaiseTo !== null) payload.allIn = true;
     }
 
     setSubmittedActionRequestId(currentActionRequestId);
@@ -817,6 +806,7 @@ export default function Game() {
     }
   }, [
     clearPendingActionTimeout,
+    exactAllInRaiseTo,
     formatRaiseInputFromChips,
     getMinRaiseToChips,
     heroAbsent,
@@ -854,17 +844,19 @@ export default function Game() {
       }
 
       if (shortcutId === 'half_pot') {
+        setExactAllInRaiseTo(null);
         setRaiseTo(formatRaiseInputFromChips(getPresetRaiseToChips(50)));
         return;
       }
 
       if (shortcutId === 'pot') {
+        setExactAllInRaiseTo(null);
         setRaiseTo(formatRaiseInputFromChips(getPresetRaiseToChips(100)));
         return;
       }
 
       if (shortcutId === 'allin') {
-        setRaiseTo(formatRaiseInputFromChips(getAllInRaiseToChips()));
+        selectAllInRaise();
       }
     };
 
@@ -876,6 +868,7 @@ export default function Game() {
     getAllInRaiseToChips,
     getPresetRaiseToChips,
     sendAction,
+    selectAllInRaise,
     shortcutIdByKey,
   ]);
 
@@ -901,6 +894,20 @@ export default function Game() {
     }
   };
 
+  const openTableFromSwitcher = (tableEntry: ActiveTableEntry) => {
+    if (tableEntry.tableId === numericTableId) return;
+
+    navigate(`/game/${tableEntry.tableId}`, {
+      state: {
+        tournamentId: tableEntry.tournamentId,
+        returnTo: getTournamentReturnPath(tableEntry, tournamentListPath),
+        autoTableSwitch: true,
+        autoTableSwitchAt: Date.now(),
+        autoTableSwitchDirection: tableEntry.tableId > numericTableId ? 'right' : 'left',
+      },
+    });
+  };
+
   return (
     <div key={numericTableId} className={`${styles.page} ${autoSwitchClass}`}>
       <button className={`${styles.iconButton} ${styles.homeButton}`} onClick={() => navigate(tournamentListPath)} aria-label="Retour aux tournois">
@@ -916,6 +923,24 @@ export default function Game() {
       >
         <span />
       </button>
+
+      {showTableSwitcher && (
+        <aside className={styles.tableSwitcherBar} aria-label="Changer de table">
+          <div className={styles.tableSwitcherTabs}>
+            {switchableTables.map(activeTable => (
+              <TournamentTableTab
+                key={`${activeTable.tournamentId}:${activeTable.tableId}`}
+                tournamentName={activeTable.tournamentName ?? `Tournoi #${activeTable.tournamentId}`}
+                tableId={activeTable.tableId}
+                userId={user?.id}
+                selected={activeTable.tableId === numericTableId}
+                classes={tableTabStyles}
+                onClick={() => openTableFromSwitcher(activeTable)}
+              />
+            ))}
+          </div>
+        </aside>
+      )}
 
       <main className={styles.arena}>
         <section className={styles.table}>
@@ -944,7 +969,12 @@ export default function Game() {
               key={player.id ?? index}
               className={`${styles.player} ${SEATS[index] ?? styles.seatTop} ${table?.playerToPlay === tableIndex ? styles.playerActive : ''} ${isWinningPlayer(player) ? styles.playerWinner : ''}`}
             >
-              <div className={styles.avatar}>{(player.name ?? '?').slice(0, 1).toUpperCase()}</div>
+              <PlayerAvatar
+                name={player.name}
+                avatarUrl={player.id ? playerAvatarsById[player.id] : null}
+                className={styles.avatar}
+                tone={index === 1 || index === 3 ? 'tableRed' : 'table'}
+              />
               <div className={styles.opponentCards}>
                 {[0, 1].map(cardIndex => {
                   const card = showOpponentCards ? player.cards?.[cardIndex] : undefined;
@@ -1031,16 +1061,30 @@ export default function Game() {
           >
             {isPreflop
               ? preflopBetPresets.map(bigBlinds => (
-                <button key={bigBlinds} className={styles.presetBtn} onClick={() => setRaiseTo(formatRaiseInputFromChips(getPreflopPresetRaiseToChips(bigBlinds)))}>
+                <button
+                  key={bigBlinds}
+                  className={styles.presetBtn}
+                  onClick={() => {
+                    setExactAllInRaiseTo(null);
+                    setRaiseTo(formatRaiseInputFromChips(getPreflopPresetRaiseToChips(bigBlinds)));
+                  }}
+                >
                   {formatInputValue(bigBlinds)}BB
                 </button>
               ))
               : betPresets.map(percent => (
-                <button key={percent} className={styles.presetBtn} onClick={() => setRaiseTo(formatRaiseInputFromChips(getPresetRaiseToChips(percent)))}>
+                <button
+                  key={percent}
+                  className={styles.presetBtn}
+                  onClick={() => {
+                    setExactAllInRaiseTo(null);
+                    setRaiseTo(formatRaiseInputFromChips(getPresetRaiseToChips(percent)));
+                  }}
+                >
                   {percent}%
                 </button>
               ))}
-            <button className={`${styles.presetBtn} ${styles.allInPresetBtn}`} onClick={() => setRaiseTo(formatRaiseInputFromChips(getAllInRaiseToChips()))}>
+            <button className={`${styles.presetBtn} ${styles.allInPresetBtn}`} onClick={selectAllInRaise}>
               All-in
             </button>
           </div>
@@ -1059,7 +1103,10 @@ export default function Game() {
               <input
                 className={styles.raiseInput}
                 value={raiseTo}
-                onChange={event => setRaiseTo(event.target.value)}
+                onChange={event => {
+                  setExactAllInRaiseTo(null);
+                  setRaiseTo(event.target.value);
+                }}
                 onKeyDown={event => {
                   if (event.key === 'Enter') void sendAction('RAISE');
                 }}
@@ -1070,16 +1117,7 @@ export default function Game() {
               />
             </div>
           </div>
-          <p className={styles.feedback}>{feedback || lastEventFeedback || (canAttemptAction ? 'À toi de jouer.' : isHeroTurn ? 'Préparation de ton action...' : 'En attente des autres joueurs.')}</p>
-          {eventFeed.length > 0 && (
-            <ol className={styles.eventFeed} aria-live="polite">
-              {eventFeed.map(event => {
-                const label = formatTableEvent(event, tablePlayers, user?.id);
-                if (!label) return null;
-                return <li key={event.id}>{label}</li>;
-              })}
-            </ol>
-          )}
+          <p className={styles.feedback}>{feedback || (canAttemptAction ? 'À toi de jouer.' : isHeroTurn ? 'Préparation de ton action...' : 'En attente des autres joueurs.')}</p>
         </section>
 
         <footer className={styles.tableInfo}>

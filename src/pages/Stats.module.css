@@ -1,6 +1,10 @@
 .page {
-  min-height: var(--app-viewport-height);
+  height: var(--app-viewport-height);
+  min-height: 0;
   padding: clamp(22px, 5vw, 74px);
+  overflow-x: hidden;
+  overflow-y: hidden;
+  overscroll-behavior: none;
   background:
     radial-gradient(circle at -8% 4%, rgba(255, 80, 25, 0.34), transparent 34%),
     radial-gradient(circle at 72% 82%, rgba(33, 130, 255, 0.22), transparent 36%),

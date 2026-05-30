@@ -3,11 +3,13 @@
   --bottom-bar-height: 112px;
 
   width: 100%;
-  min-height: var(--app-viewport-height);
+  height: var(--app-viewport-height);
+  min-height: 0;
   min-width: 320px;
   display: flex;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: hidden;
+  overscroll-behavior: none;
   position: relative;
   background:
     radial-gradient(circle at 5% 5%, rgba(0, 117, 255, 0.42) 0, transparent 30%),
@@ -31,6 +33,7 @@
   position: relative;
   z-index: 3;
   box-shadow: 12px 0 32px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
 }
 
 .logoWrap {
@@ -133,13 +136,22 @@
   display: block;
 }
 
+.profileAvatar {
+  --player-avatar-size: 66px;
+  --player-avatar-font-size: 24px;
+}
+
 .main {
   flex: 1;
+  height: var(--app-viewport-height);
   min-width: 0;
   position: relative;
   display: flex;
   justify-content: center;
   padding: 70px 48px var(--bottom-bar-height);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .panel {
@@ -335,16 +347,16 @@
 }
 
 .cardsTab {
-  width: 112px;
-  height: 68px;
+  width: var(--cards-tab-width, 112px);
+  height: var(--cards-tab-height, 68px);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 11px 16px;
+  gap: var(--cards-tab-gap, 6px);
+  padding: var(--cards-tab-padding, 11px 16px);
   background: #fff;
   border: 0;
-  border-radius: 14px;
+  border-radius: var(--cards-tab-border-radius, 14px);
   cursor: pointer;
   flex: 0 0 auto;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.34), inset 0 -3px 0 rgba(0, 0, 0, 0.08);
@@ -367,8 +379,8 @@
 }
 
 .card {
-  width: 38px;
-  height: 34px;
+  width: var(--cards-tab-card-width, 38px);
+  height: var(--cards-tab-card-height, 34px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -376,7 +388,7 @@
   border: 1px solid #d2d2d2;
   border-radius: 4px;
   color: #111;
-  font-size: 12px;
+  font-size: var(--cards-tab-card-font-size, 12px);
   font-weight: 600;
   box-shadow: 0 2px 3px rgba(0, 0, 0, 0.14);
 }
@@ -476,6 +488,11 @@
   .iconImg {
     width: 46px;
     height: 46px;
+  }
+
+  .profileAvatar {
+    --player-avatar-size: 46px;
+    --player-avatar-font-size: 18px;
   }
 
   .main {
@@ -740,19 +757,22 @@
 }
 
 .trioChoices {
-  position: relative;
+  position: absolute;
+  top: 50%;
+  left: clamp(48px, 7vw, 86px);
+  transform: translateY(-50%);
   z-index: 1;
-  width: 100%;
+  width: clamp(240px, 30%, 320px);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: clamp(120px, 14vh, 150px);
-  padding-top: clamp(112px, 19vh, 190px);
+  align-items: stretch;
+  gap: 28px;
+  padding-top: 0;
 }
 
 .trioChoiceBtn {
-  width: min(300px, 62%);
-  height: 120px;
+  width: 100%;
+  height: 112px;
   border: 1.5px solid rgba(255, 209, 20, 0.55);
   border-radius: 22px;
   background: rgba(31, 20, 5, 0.92);
@@ -787,6 +807,17 @@
 
 .trioChoiceBtnTurbo {
   border-color: rgba(255, 140, 5, 0.55);
+}
+
+.modeInfoStack {
+  position: absolute;
+  top: 50%;
+  right: clamp(36px, 6vw, 76px);
+  z-index: 2;
+  width: clamp(280px, 34%, 342px);
+  display: grid;
+  gap: 12px;
+  transform: translateY(-50%);
 }
 
 .trioTriangle {
@@ -854,19 +885,22 @@
 }
 
 .headupChoices {
-  position: relative;
+  position: absolute;
+  top: 50%;
+  left: clamp(48px, 7vw, 86px);
+  transform: translateY(-50%);
   z-index: 1;
-  width: 100%;
+  width: clamp(240px, 30%, 320px);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: clamp(120px, 14vh, 150px);
-  padding-top: clamp(112px, 19vh, 190px);
+  align-items: stretch;
+  gap: 28px;
+  padding-top: 0;
 }
 
 .headupChoiceBtn {
-  width: min(300px, 62%);
-  height: 120px;
+  width: 100%;
+  height: 112px;
   border: 1.5px solid rgba(20, 255, 91, 0.55);
   border-radius: 22px;
   background: rgba(5, 31, 7, 0.92);
@@ -946,12 +980,16 @@
   }
 
   .trioChoices {
-    gap: 92px;
-    padding-top: 110px;
+    gap: 22px;
   }
 
   .trioChoiceBtn {
     height: 88px;
+  }
+
+  .modeInfoStack {
+    right: 28px;
+    width: clamp(260px, 34%, 310px);
   }
 
   .trioTriangle {
@@ -965,8 +1003,7 @@
   }
 
   .headupChoices {
-    gap: 92px;
-    padding-top: 110px;
+    gap: 22px;
   }
 
   .headupChoiceBtn {
@@ -981,10 +1018,27 @@
 }
 
 @media (max-width: 760px) {
-  .trioChoiceBtn {
+  .trioChoices,
+  .headupChoices {
+    top: 54px;
+    left: 50%;
     width: min(240px, 72%);
+    transform: translateX(-50%);
+    gap: 18px;
+  }
+
+  .trioChoiceBtn {
     height: 86px;
     font-size: 22px;
+  }
+
+  .modeInfoStack {
+    top: auto;
+    right: 18px;
+    bottom: 18px;
+    left: 18px;
+    width: auto;
+    transform: none;
   }
 
   .trioTriangle {
@@ -997,7 +1051,6 @@
   }
 
   .headupChoiceBtn {
-    width: min(240px, 72%);
     height: 86px;
     font-size: 22px;
   }

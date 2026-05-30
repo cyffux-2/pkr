@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Code de récupération PKR</title>
+  </head>
+  <body style="margin:0;background:#0a0a0a;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#0a0a0a;padding:32px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:460px;background:#121212;border:1px solid #242424;border-radius:18px;padding:28px;">
+            <tr>
+              <td>
+                <p style="margin:0 0 12px;color:#ff3b44;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;text-align:center;">PKR</p>
+                <h1 style="margin:0 0 14px;color:#ffffff;font-size:22px;line-height:1.25;text-align:center;">Code de récupération</h1>
+                <p style="margin:0 0 22px;color:#b8b8b8;font-size:15px;line-height:1.5;text-align:center;">
+                  Entre ce code dans l'application pour changer ton mot de passe.
+                </p>
+                <div style="margin:0 auto 22px;padding:18px 22px;background:#1f1f1f;border:1px solid #343434;border-radius:14px;color:#ffffff;font-size:32px;font-weight:800;letter-spacing:8px;text-align:center;">
+                  {{ .Token }}
+                </div>
+                <p style="margin:0 0 16px;color:#777777;font-size:13px;line-height:1.5;text-align:center;">
+                  Ce code expire automatiquement. Si tu n'es pas a l'origine de cette demande, ignore cet email.
+                </p>
+                <p style="margin:0;color:#666666;font-size:12px;line-height:1.5;text-align:center;">
+                  Tu peux aussi utiliser ce lien de secours :
+                  <a href="{{ .ConfirmationURL }}" style="color:#ff6b72;text-decoration:none;">changer mon mot de passe</a>
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

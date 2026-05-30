@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" role="img" aria-label="PKR Alpha">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101011"/>
+      <stop offset="0.52" stop-color="#221515"/>
+      <stop offset="1" stop-color="#080809"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="72%" cy="34%" r="55%">
+      <stop offset="0" stop-color="#ff4f35" stop-opacity="0.55"/>
+      <stop offset="0.48" stop-color="#ffb53c" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="620" rx="34" fill="url(#bg)"/>
+  <rect width="1200" height="620" rx="34" fill="url(#glow)"/>
+  <circle cx="240" cy="312" r="116" fill="#f4f1e8"/>
+  <circle cx="240" cy="312" r="84" fill="#101011"/>
+  <circle cx="240" cy="312" r="48" fill="#f4f1e8"/>
+  <g fill="none" stroke="#f4f1e8" stroke-width="16" stroke-linecap="round" opacity="0.88">
+    <path d="M182 228l116 168"/>
+    <path d="M298 228L182 396"/>
+  </g>
+  <text x="416" y="278" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="88" font-weight="900">PKR ALPHA</text>
+  <text x="420" y="360" fill="#ffffff" opacity="0.72" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="700">Tournois, Sit&amp;GO, Triple et HeadUp</text>
+  <rect x="422" y="414" width="232" height="8" rx="4" fill="#ff4f35"/>
+</svg>

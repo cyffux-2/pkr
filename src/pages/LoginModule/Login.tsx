@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { translateAuthError } from '../../lib/authErrors';
-import { publicAsset } from '../../lib/publicAssets';
+import { formatLiveStatNumber, useLiveSiteStats } from '../../lib/useLiveSiteStats';
 import styles from './auth.module.css';
 
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { stats, loading: statsLoading } = useLiveSiteStats();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(false);
@@ -74,7 +75,7 @@ export default function Login() {
           {/* Contenu textuel (flux normal) */}
           <div className={styles.leftContent}>
             <div className={styles.logoLeft}>
-              <img src={publicAsset('/logo.png')} alt="Logo PKR" className={styles.logoImageLeft} />
+              <img src="/logo.png" alt="Logo PKR" className={styles.logoImageLeft} />
             </div>
             <h2 className={styles.heroTitle}>DÉFIE LES<br />MEILLEURS</h2>
             <p className={styles.heroDesc}>
@@ -99,15 +100,24 @@ export default function Login() {
             </svg>
 
             {/* Chip stack 1 — en haut au centre de la table */}
-            <img src={publicAsset('/jeton.png')} alt="Jetons" className={styles.chipStack1} />
+            <img src="/jeton.png" alt="Jetons" className={styles.chipStack1} />
             {/* Chip stack 2 — en bas au centre de la table */}
-            <img src={publicAsset('/jeton.png')} alt="Jetons" className={styles.chipStack2} />
+            <img src="/jeton.png" alt="Jetons" className={styles.chipStack2} />
 
             {/* Stats par-dessus le bord bas de la table */}
             <div className={styles.heroStats}>
-              <div><strong>24/7</strong><span>Parties tous les jours</span></div>
-              <div><strong>400</strong><span>joueurs</span></div>
-              <div><strong>5</strong><span>Rang à atteindre</span></div>
+              <div>
+                <strong>{statsLoading ? '...' : formatLiveStatNumber(stats.playersInGame)}</strong>
+                <span>Joueurs en jeu</span>
+              </div>
+              <div>
+                <strong>{statsLoading ? '...' : formatLiveStatNumber(stats.activeTables)}</strong>
+                <span>Tables actives</span>
+              </div>
+              <div>
+                <strong>{statsLoading ? '...' : formatLiveStatNumber(stats.weeklyRegistrations)}</strong>
+                <span>Inscriptions cette semaine</span>
+              </div>
             </div>
           </div>
 
@@ -116,7 +126,7 @@ export default function Login() {
         {/* Panneau droit clair */}
         <div className={styles.cardLight}>
           <div className={styles.logo}>
-            <img src={publicAsset('/logo.png')} alt="Logo PKR" className={styles.logoImage} />
+            <img src="/logo.png" alt="Logo PKR" className={styles.logoImage} />
           </div>
           <p className={styles.subtitleLight}>Connecte-toi pour reprendre la compétition.</p>
 

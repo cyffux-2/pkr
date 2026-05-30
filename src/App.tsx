@@ -1,4 +1,5 @@
-import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { ActiveTablesPreloader } from './components/ActiveTablesPreloader';
 import { TableTurnAutoSwitcher } from './components/TableTurnAutoSwitcher';
@@ -21,21 +22,44 @@ import ResetPassword from './pages/LoginModule/ResetPassword';
 import AuthCallback from './pages/LoginModule/AuthCallback';
 import NotFound from './pages/NotFound';
 
-function getRouterBaseName() {
-  const publicUrl = process.env.PUBLIC_URL ?? '';
-  if (!publicUrl) return undefined;
+const PAGE_TITLES: Record<string, string> = {
+  '/': 'PKR - Connexion',
+  '/login': 'PKR - Connexion',
+  '/register': 'PKR - Creation de compte',
+  '/home': 'PKR - Accueil',
+  '/settings': 'PKR - Parametres',
+  '/forgot-password': 'PKR - Recuperation du mot de passe',
+  '/reset-password': 'PKR - Nouveau mot de passe',
+  '/auth/callback': 'PKR - Connexion en cours',
+  '/tournaments': 'PKR - Tournois',
+  '/sng': 'PKR - Sit&Go',
+  '/trio': 'PKR - Triple',
+  '/headup': 'PKR - HeadUp',
+  '/stats': 'PKR - Statistiques',
+  '/lobby': 'PKR - Lobby',
+  '/leaderboard': 'PKR - Classement',
+};
 
-  try {
-    const parsed = new URL(publicUrl);
-    return parsed.pathname === '/' ? undefined : parsed.pathname;
-  } catch {
-    return publicUrl;
-  }
+function getPageTitle(pathname: string) {
+  if (pathname.startsWith('/game/')) return 'PKR - Table';
+  if (pathname.startsWith('/tournament-lobby/')) return 'PKR - Lobby tournoi';
+  return PAGE_TITLES[pathname] ?? 'PKR - Poker en ligne';
+}
+
+function PageTitle() {
+  const location = useLocation();
+
+  useEffect(() => {
+    document.title = getPageTitle(location.pathname);
+  }, [location.pathname]);
+
+  return null;
 }
 
 function AppRoutes() {
   return (
-    <BrowserRouter basename={getRouterBaseName()}>
+    <BrowserRouter>
+      <PageTitle />
       <TableTurnAutoSwitcher />
       <Routes>
         {/* Pages sans Navbar */}

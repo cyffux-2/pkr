@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { translateAuthError } from '../../lib/authErrors';
-import { publicAsset } from '../../lib/publicAssets';
 import styles from './auth.module.css';
 
 export default function ResetPassword() {
@@ -15,8 +14,51 @@ export default function ResetPassword() {
 
   useEffect(() => {
     const hash = window.location.hash;
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const tokenHash = params.get('token_hash');
+    const errorDescription = params.get('error_description');
+
     if (hash.includes('error=access_denied') || hash.includes('otp_expired')) {
       setIsExpired(true);
+      return;
+    }
+
+    if (errorDescription) {
+      setError(translateAuthError(errorDescription));
+      setIsExpired(true);
+      return;
+    }
+
+    if (tokenHash) {
+      setLoading(true);
+      supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+        .then(({ error }) => {
+          if (error) {
+            setError(translateAuthError(error.message));
+            setIsExpired(true);
+          }
+        })
+        .finally(() => {
+          setLoading(false);
+          window.history.replaceState({}, document.title, window.location.pathname);
+        });
+      return;
+    }
+
+    if (code) {
+      setLoading(true);
+      supabase.auth.exchangeCodeForSession(code)
+        .then(({ error }) => {
+          if (error) {
+            setError(translateAuthError(error.message));
+            setIsExpired(true);
+          }
+        })
+        .finally(() => {
+          setLoading(false);
+          window.history.replaceState({}, document.title, window.location.pathname);
+        });
     }
   }, []);
 
@@ -36,7 +78,11 @@ export default function ResetPassword() {
     if (error) {
       setError(translateAuthError(error.message));
     } else {
-      navigate('/login');
+      await supabase.auth.signOut();
+      navigate('/login', {
+        replace: true,
+        state: { notice: 'Mot de passe mis à jour. Tu peux te connecter.' },
+      });
     }
     setLoading(false);
   };
@@ -49,7 +95,7 @@ export default function ResetPassword() {
 
       <div className={styles.card}>
         <div className={styles.logo}>
-          <img src={publicAsset('/logo.png')} alt="Logo PKR" className={styles.logoImage} />
+          <img src="/logo.png" alt="Logo PKR" className={styles.logoImage} />
         </div>
 
         {isExpired ? (

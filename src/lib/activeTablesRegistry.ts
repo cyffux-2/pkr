@@ -3,6 +3,7 @@ export type ActiveTableEntry = {
   tournamentId: number;
   tournamentName?: string;
   startDate?: string;
+  maxPlayers?: number;
 };
 
 const activeTablesByUser = new Map<string, ActiveTableEntry[]>();
@@ -18,6 +19,7 @@ function normalizeTables(tables: ActiveTableEntry[]) {
       tournamentId: table.tournamentId,
       tournamentName: table.tournamentName,
       startDate: table.startDate,
+      maxPlayers: table.maxPlayers,
     });
   });
 
@@ -36,8 +38,8 @@ export function getActiveTablesForUser(userId: string) {
 export function setActiveTablesForUser(userId: string, tables: ActiveTableEntry[]) {
   const next = normalizeTables(tables);
   const current = activeTablesByUser.get(userId) ?? [];
-  const currentFingerprint = current.map(table => `${table.tournamentId}:${table.tableId}:${table.tournamentName ?? ''}:${table.startDate ?? ''}`).join('|');
-  const nextFingerprint = next.map(table => `${table.tournamentId}:${table.tableId}:${table.tournamentName ?? ''}:${table.startDate ?? ''}`).join('|');
+  const currentFingerprint = current.map(table => `${table.tournamentId}:${table.tableId}:${table.tournamentName ?? ''}:${table.startDate ?? ''}:${table.maxPlayers ?? ''}`).join('|');
+  const nextFingerprint = next.map(table => `${table.tournamentId}:${table.tableId}:${table.tournamentName ?? ''}:${table.startDate ?? ''}:${table.maxPlayers ?? ''}`).join('|');
 
   if (currentFingerprint === nextFingerprint) return;
 

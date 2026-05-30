@@ -133,6 +133,40 @@
     0 26px 0 #ff0909;
 }
 
+.tableSwitcherBar {
+  --cards-tab-width: clamp(82px, 7vw, 104px);
+  --cards-tab-height: clamp(54px, 5.2vw, 64px);
+  --cards-tab-gap: 5px;
+  --cards-tab-padding: 9px 11px;
+  --cards-tab-border-radius: 12px;
+  --cards-tab-card-width: clamp(28px, 2.8vw, 34px);
+  --cards-tab-card-height: clamp(28px, 2.6vw, 32px);
+  --cards-tab-card-font-size: clamp(10px, 0.95vw, 12px);
+  position: fixed;
+  right: 0;
+  top: 50%;
+  z-index: 22;
+  max-height: min(72vh, calc(var(--app-viewport-height) - 150px));
+  padding: 10px max(10px, env(safe-area-inset-right)) 10px 10px;
+  border-radius: 18px 0 0 18px;
+  background: #000;
+  box-shadow: -16px 0 38px rgba(0, 0, 0, 0.42);
+  transform: translateY(-50%);
+  overflow: visible;
+}
+
+.tableSwitcherTabs {
+  max-height: calc(var(--app-viewport-height) - 170px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 6px;
+  overflow-x: visible;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.34) transparent;
+}
+
 .table {
   position: absolute;
   left: 50%;
@@ -304,30 +338,8 @@
 }
 
 .avatar {
-  width: clamp(54px, 7.6vw, 116px);
-  height: clamp(54px, 7.6vw, 116px);
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 50% 32%, rgba(255, 255, 255, 0.28), transparent 18%),
-    linear-gradient(145deg, #06ca75, #007444);
-  box-shadow:
-    0 0 24px rgba(6, 202, 117, 0.44),
-    inset 0 -12px 24px rgba(0, 0, 0, 0.26);
-  color: rgba(0, 0, 0, 0.62);
-  font-size: clamp(22px, 3vw, 44px);
-  font-weight: 900;
-}
-
-.seatTopLeft .avatar,
-.seatTopRight .avatar {
-  background:
-    radial-gradient(circle at 50% 32%, rgba(255, 255, 255, 0.22), transparent 18%),
-    linear-gradient(145deg, #d80000, #7f0000);
-  box-shadow:
-    0 0 24px rgba(216, 0, 0, 0.42),
-    inset 0 -12px 24px rgba(0, 0, 0, 0.26);
+  --player-avatar-size: clamp(54px, 7.6vw, 116px);
+  --player-avatar-font-size: clamp(22px, 3vw, 44px);
 }
 
 .playerName,
@@ -825,28 +837,6 @@
   transition: opacity 140ms ease, color 140ms ease;
 }
 
-.eventFeed {
-  display: grid;
-  gap: 4px;
-  max-width: min(420px, 100%);
-  max-height: 112px;
-  margin: 8px 0 0;
-  padding: 0;
-  overflow: hidden;
-  list-style: none;
-}
-
-.eventFeed li {
-  min-height: 16px;
-  overflow: hidden;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: clamp(11px, 1.05vw, 14px);
-  font-weight: 800;
-  line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .tableInfo {
   position: absolute;
   right: clamp(12px, 1.8vw, 26px);
@@ -973,8 +963,7 @@
 
   .presetRow,
   .actionRow,
-  .actionTimer,
-  .eventFeed {
+  .actionTimer {
     justify-content: center;
     margin-inline: auto;
   }

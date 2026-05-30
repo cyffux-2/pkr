@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" role="img" aria-label="Leaderboard">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#09090a"/>
+      <stop offset="0.5" stop-color="#1d1823"/>
+      <stop offset="1" stop-color="#101010"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="620" rx="34" fill="url(#bg)"/>
+  <rect x="116" y="342" width="182" height="156" rx="18" fill="#8c8c8c"/>
+  <rect x="338" y="248" width="182" height="250" rx="18" fill="#e2b84b"/>
+  <rect x="560" y="300" width="182" height="198" rx="18" fill="#b56d3d"/>
+  <text x="388" y="414" fill="#111111" font-family="Inter, Arial, sans-serif" font-size="78" font-weight="900">1</text>
+  <text x="166" y="438" fill="#111111" font-family="Inter, Arial, sans-serif" font-size="62" font-weight="900">2</text>
+  <text x="610" y="438" fill="#111111" font-family="Inter, Arial, sans-serif" font-size="62" font-weight="900">3</text>
+  <text x="812" y="178" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="68" font-weight="900">RANKING</text>
+  <text x="816" y="246" fill="#ffffff" opacity="0.72" font-family="Inter, Arial, sans-serif" font-size="31" font-weight="700">ELO, victoires et volume</text>
+  <rect x="818" y="302" width="188" height="8" rx="4" fill="#e2b84b"/>
+</svg>

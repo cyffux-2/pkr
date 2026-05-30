@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" role="img" aria-label="Tables live">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#061412"/>
+      <stop offset="0.58" stop-color="#10211d"/>
+      <stop offset="1" stop-color="#050706"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="620" rx="34" fill="url(#bg)"/>
+  <ellipse cx="602" cy="338" rx="364" ry="168" fill="#134f3e"/>
+  <ellipse cx="602" cy="338" rx="318" ry="130" fill="#0d352b"/>
+  <g fill="#f7f1df">
+    <rect x="492" y="244" width="80" height="118" rx="10"/>
+    <rect x="584" y="244" width="80" height="118" rx="10"/>
+    <rect x="676" y="244" width="80" height="118" rx="10"/>
+  </g>
+  <text x="86" y="132" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="70" font-weight="900">TABLES LIVE</text>
+  <text x="90" y="202" fill="#ffffff" opacity="0.72" font-family="Inter, Arial, sans-serif" font-size="31" font-weight="700">Garde tes parties actives sous les yeux</text>
+  <circle cx="1050" cy="118" r="18" fill="#ff3131"/>
+  <circle cx="1050" cy="118" r="36" fill="#ff3131" opacity="0.16"/>
+</svg>

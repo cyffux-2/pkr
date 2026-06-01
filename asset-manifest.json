@@ -1,18 +1,18 @@
 {
   "files": {
-    "main.css": "/pkr/static/css/main.b580c388.css",
-    "main.js": "/pkr/static/js/main.ccdc9331.js",
+    "main.css": "/pkr/static/css/main.e6a71a3b.css",
+    "main.js": "/pkr/static/js/main.c217df91.js",
     "static/media/background.svg": "/pkr/static/media/background.fe7180ff47a8eda16132.svg",
     "static/media/01-pkr-alpha.svg": "/pkr/static/media/01-pkr-alpha.f5982a9789ee287aaf62.svg",
     "static/media/03-leaderboard.svg": "/pkr/static/media/03-leaderboard.ddc759347772bbcbdf11.svg",
     "index.html": "/pkr/index.html",
     "static/media/02-tables-live.svg": "/pkr/static/media/02-tables-live.09a30bfdb30756649e29.svg",
     "static/media/polygon-light.svg": "/pkr/static/media/polygon-light.c53b9c181f482e052912.svg",
-    "main.b580c388.css.map": "/pkr/static/css/main.b580c388.css.map",
-    "main.ccdc9331.js.map": "/pkr/static/js/main.ccdc9331.js.map"
+    "main.e6a71a3b.css.map": "/pkr/static/css/main.e6a71a3b.css.map",
+    "main.c217df91.js.map": "/pkr/static/js/main.c217df91.js.map"
   },
   "entrypoints": [
-    "static/css/main.b580c388.css",
-    "static/js/main.ccdc9331.js"
+    "static/css/main.e6a71a3b.css",
+    "static/js/main.c217df91.js"
   ]
 }

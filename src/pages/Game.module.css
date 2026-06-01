@@ -48,7 +48,7 @@
   --table-half: min(40vw, 560px);
   --table-width: calc(var(--table-half) + var(--table-half));
   --controls-left: clamp(8px, 1vw, 16px);
-  --controls-width: min(47vw, 690px);
+  --controls-width: min(48vw, 712px);
   --hero-clearance-from-controls: clamp(200px, 14vw, 250px);
   --hero-left: min(70%, max(50%, calc(var(--controls-left) + var(--controls-width) + var(--hero-clearance-from-controls))));
   --seat-outside-offset: clamp(40px, 4.2vw, 68px);
@@ -624,12 +624,6 @@
 }
 
 .controls {
-  --action-gap: clamp(8px, 2.2vw, 34px);
-  --action-slot-width: clamp(86px, 8.4vw, 120px);
-  --action-controls-width: calc(
-    var(--action-slot-width) + var(--action-slot-width) + var(--action-slot-width) + var(--action-slot-width) +
-    var(--action-gap) + var(--action-gap) + var(--action-gap)
-  );
   position: absolute;
   left: var(--controls-left);
   bottom: clamp(8px, 1.2vw, 18px);
@@ -701,31 +695,61 @@
   background: #ff5f2e;
 }
 
+.choicePanel {
+  width: min(700px, 100%);
+  padding: 0;
+  position: relative;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.choicePanel::before,
+.choicePanel::after {
+  display: none;
+}
+
 .actionRow {
   display: flex;
   align-items: center;
-  width: var(--action-controls-width);
+  width: 100%;
   max-width: 100%;
 }
 
 .presetRow {
   display: grid;
   grid-template-columns: repeat(var(--preset-count, 3), minmax(0, 1fr));
-  gap: 5px;
+  gap: 8px;
   align-items: center;
-  width: var(--action-controls-width);
+  width: 100%;
   max-width: 100%;
-  margin-bottom: 13px;
+  min-height: 42px;
+  margin-bottom: 10px;
+  padding: 0;
+  position: relative;
+  z-index: 1;
+  overflow: visible;
+  border: 0;
+  background: transparent;
 }
 
 .actionRow {
-  gap: var(--action-gap);
+  min-height: 76px;
+  gap: 12px;
+  padding: 0;
+  position: relative;
+  z-index: 1;
+  overflow: visible;
+  border: 0;
+  background: transparent;
 }
 
 .amountAction {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex: 1 1 176px;
+  min-width: 118px;
 }
 
 .presetBtn,
@@ -736,13 +760,15 @@
   z-index: 0;
   overflow: hidden;
   appearance: none;
-  border: 0;
+  border: 1px solid rgba(255, 255, 255, 0.16);
   background: transparent;
-  color: #050505;
+  color: rgba(255, 255, 255, 0.88);
   font-family: inherit;
-  font-weight: 900;
+  font-weight: 800;
   cursor: pointer;
-  transition: transform 80ms ease, filter 90ms ease, background 90ms ease;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  transition: transform 80ms ease, filter 90ms ease, border-color 90ms ease, color 90ms ease, box-shadow 90ms ease;
 }
 
 .presetBtn::before,
@@ -754,42 +780,64 @@
   border-radius: inherit;
   background: var(--button-bg);
   pointer-events: none;
-  transition: filter 90ms ease, transform 90ms ease;
+  transition: background 90ms ease, filter 90ms ease, transform 90ms ease;
 }
 
 .presetBtn {
-  --button-bg: rgba(255, 157, 0, 0.8);
+  --button-bg: rgba(42, 42, 46, 0.68);
   width: 100%;
   min-width: 0;
-  height: clamp(26px, 2.5vw, 34px);
+  height: 30px;
   padding: 0 10px;
-  border-radius: 999px;
-  font-size: clamp(12px, 1.25vw, 20px);
+  border-radius: 10px;
+  font-size: clamp(11px, 1.05vw, 15px);
+  line-height: 1;
 }
 
 .allInPresetBtn {
-  --button-bg: rgba(255, 73, 73, 0.86);
   padding: 0 6px;
-  font-size: clamp(11px, 1.05vw, 16px);
+  font-size: clamp(10px, 0.95vw, 14px);
   white-space: nowrap;
 }
 
+.presetBtnSelected {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 10px 20px rgba(0, 0, 0, 0.34);
+  --button-bg: rgba(68, 68, 74, 0.76);
+}
+
 .actionBtn {
-  --button-bg: rgba(255, 234, 0, 0.78);
-  min-width: clamp(86px, 8.4vw, 120px);
-  height: clamp(48px, 5vw, 64px);
+  --button-bg: rgba(42, 42, 46, 0.72);
+  flex: 1 1 128px;
+  min-width: 100px;
+  height: 56px;
   padding: 0 16px;
-  border-radius: clamp(13px, 1.6vw, 20px);
-  font-size: clamp(18px, 2vw, 28px);
+  border-color: rgba(255, 255, 255, 0.16);
+  border-radius: 15px;
+  font-size: clamp(18px, 1.85vw, 24px);
 }
 
 .callBtn {
-  --button-bg: rgba(255, 157, 0, 0.78);
+  --button-bg: rgba(42, 42, 46, 0.72);
 }
 
-.presetBtn:hover:not(:disabled)::before,
-.actionBtn:hover:not(.actionBtnDisabled)::before {
-  filter: brightness(0.72);
+.actionBtnRaise {
+  flex-basis: 176px;
+  border-color: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
+  --button-bg: rgba(42, 42, 46, 0.72);
+}
+
+.presetBtn:hover:not(:disabled),
+.actionBtn:hover:not(.actionBtnDisabled) {
+  border-color: rgba(255, 199, 77, 0.28);
+  color: #0d0905;
+  box-shadow: 0 7px 16px rgba(255, 92, 10, 0.24);
+  --button-bg: rgba(255, 122, 20, 0.92);
 }
 
 .presetBtn:active::before,
@@ -808,18 +856,39 @@
 }
 
 .raiseInput {
-  width: clamp(86px, 8.4vw, 120px);
-  height: clamp(48px, 5vw, 64px);
+  width: 100%;
+  height: 56px;
   padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: clamp(13px, 1.6vw, 20px);
-  background: rgba(0, 0, 0, 0.42);
-  color: #fff;
-  font-size: clamp(16px, 1.7vw, 24px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 15px;
+  background: rgba(42, 42, 46, 0.72);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: clamp(22px, 2.2vw, 30px);
   font: inherit;
   font-weight: 800;
   text-align: center;
   outline: none;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  transition: background 90ms ease, border-color 90ms ease, color 90ms ease, box-shadow 90ms ease;
+}
+
+.raiseInput::placeholder {
+  color: rgba(255, 255, 255, 0.88);
+  opacity: 1;
+}
+
+.raiseInput:hover:not(:disabled),
+.raiseInput:focus {
+  border-color: rgba(255, 199, 77, 0.28);
+  background: rgba(255, 122, 20, 0.86);
+  color: #0d0905;
+  box-shadow: 0 7px 16px rgba(255, 92, 10, 0.24);
+}
+
+.raiseInput:hover:not(:disabled)::placeholder,
+.raiseInput:focus::placeholder {
+  color: #0d0905;
 }
 
 .raiseInput:disabled {

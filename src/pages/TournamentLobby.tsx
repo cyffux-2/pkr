@@ -210,7 +210,7 @@ export default function TournamentLobby() {
 
   useEffect(() => {
     if (!Number.isFinite(numericTournamentId)) {
-      navigate('/tournaments');
+      navigate(returnTo, { replace: true });
       return;
     }
 
@@ -221,9 +221,13 @@ export default function TournamentLobby() {
       if (cancelled) return;
 
       const next = ((data?.tournaments ?? []) as TournamentRow[]).find(item => item.id === numericTournamentId) ?? null;
-      if (error || data?.error || !next) {
+      if (error || data?.error) {
         setFeedback('Tournoi introuvable.');
         setTournament(null);
+        return;
+      }
+      if (!next) {
+        navigate(returnTo, { replace: true });
         return;
       }
 
@@ -261,7 +265,7 @@ export default function TournamentLobby() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [navigate, numericTournamentId]);
+  }, [navigate, numericTournamentId, returnTo]);
 
   useEffect(() => {
     if (!user || !joined || !tournament) return;
@@ -347,6 +351,40 @@ export default function TournamentLobby() {
     }
   };
 
+  const unregisterTournament = async () => {
+    if (!user || !tournament) {
+      navigate('/login');
+      return;
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      navigate('/login');
+      return;
+    }
+
+    const { data, error } = await supabase.functions.invoke('unregister-tournament', {
+      body: { tournamentId: tournament.id },
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+
+    if (error || data?.error) {
+      setFeedback(data?.error || error?.message || 'Impossible de te désinscrire de ce tournoi.');
+      return;
+    }
+
+    const updatedTournament = data?.tournament as TournamentRow | undefined;
+    if (!updatedTournament) {
+      setFeedback('Impossible de te désinscrire de ce tournoi.');
+      return;
+    }
+
+    setTournament(updatedTournament);
+    setTableId(null);
+    setTableState(null);
+    setFeedback('Désinscription confirmée.');
+  };
+
   return (
     <div className={styles.page}>
       <main className={styles.shell}>
@@ -398,6 +436,11 @@ export default function TournamentLobby() {
 
         <div className={styles.bottomActions}>
           <span>{tableLabel}{tableState ? ` · ${tableState.SB}/${tableState.BB}` : ''}</span>
+          {joined && (
+            <button className={styles.unregisterButton} onClick={unregisterTournament}>
+              Désinscription
+            </button>
+          )}
           {showTableButton && (
             <button className={`${styles.backTournamentButton} ${tablePreview.isHeroTurn ? styles.backTournamentButtonPulse : ''}`} onClick={openTable}>
               <span className={styles.tableCardsPreview}>

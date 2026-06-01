@@ -6,6 +6,27 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const registrationClosedAfterLevel = 10
+
+function getCurrentLevel(tournament) {
+  const startTime = new Date(tournament.start_date).getTime()
+  const levelMinutes = Number(tournament.time_per_level)
+
+  if (!Number.isFinite(startTime) || !Number.isFinite(levelMinutes) || levelMinutes <= 0) {
+    return 0
+  }
+
+  const elapsedMs = Date.now() - startTime
+  if (elapsedMs < 0) return 0
+
+  return Math.floor(elapsedMs / (levelMinutes * 60_000)) + 1
+}
+
+function isRegistrationClosed(tournament) {
+  if (Number(tournament.max_players) < 20) return false
+  return getCurrentLevel(tournament) > registrationClosedAfterLevel
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -19,20 +40,45 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    const { data, error } = await admin
-      .from('tournaments')
-      .select('*')
-      .order('start_date', { ascending: false })
-      .limit(50)
+    const nowIso = new Date().toISOString()
+    const [scheduledResponse, sitAndGoResponse] = await Promise.all([
+      admin
+        .from('tournaments')
+        .select('*')
+        .gte('start_date', nowIso)
+        .order('start_date', { ascending: true })
+        .limit(50),
+      admin
+        .from('tournaments')
+        .select('*')
+        .lt('max_players', 20)
+        .order('created_at', { ascending: false })
+        .limit(100),
+    ])
 
-    if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
+    if (scheduledResponse.error) {
+      return new Response(JSON.stringify({ error: scheduledResponse.error.message }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    const tournaments = data ?? []
+    if (sitAndGoResponse.error) {
+      return new Response(JSON.stringify({ error: sitAndGoResponse.error.message }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const tournamentsById = new Map()
+    for (const tournament of scheduledResponse.data ?? []) {
+      tournamentsById.set(tournament.id, tournament)
+    }
+    for (const tournament of sitAndGoResponse.data ?? []) {
+      tournamentsById.set(tournament.id, tournament)
+    }
+
+    const tournaments = Array.from(tournamentsById.values())
     const tournamentIds = tournaments
       .map((tournament) => tournament.id)
       .filter((id) => typeof id === 'number')
@@ -68,10 +114,13 @@ Deno.serve(async (req) => {
       const alivePlayers = aliveCountByTournament.has(tournament.id)
         ? aliveCountByTournament.get(tournament.id).size
         : registeredPlayers
+      const currentLevel = getCurrentLevel(tournament)
 
       return {
         ...tournament,
         alive_players_count: alivePlayers,
+        current_level: currentLevel,
+        registration_closed: isRegistrationClosed(tournament),
       }
     })
 

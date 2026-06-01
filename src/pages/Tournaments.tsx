@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { getPublicUrl } from '../lib/publicUrl';
 import { ensureTournamentTableConnection, getCachedTournamentTable } from '../lib/tournamentConnections';
 import { ensureTableStateCache } from '../lib/tableStateCache';
 import { watchDismissedEliminatedTables } from '../lib/eliminatedTournamentDismissals';
@@ -25,6 +26,8 @@ interface TournamentRow {
   ranked: boolean;
   time_per_level: number;
   alive_players_count?: number;
+  current_level?: number;
+  registration_closed?: boolean;
   tableId?: number;
 }
 
@@ -44,7 +47,9 @@ interface PageConfig {
   alreadyJoinedText: string;
   fullText: string;
   joinErrorText: string;
+  unregisterErrorText: string;
   joinedText: string;
+  unregisteredText: string;
   searchingTableText: string;
   registeredTablePendingText: string;
   noTableText: string;
@@ -76,6 +81,8 @@ function isHeadupTournament(tournament: Pick<TournamentRow, 'tournament_name' | 
   return tournament.max_players === 2 && isHeadupTournamentName(tournament.tournament_name);
 }
 
+const TOURNAMENT_PAGE_MIN_PLAYERS = 20;
+
 const PAGE_CONFIG: Record<TournamentPageMode, PageConfig> = {
   tournament: {
     dataName: 'Main Page - tournoi',
@@ -86,12 +93,14 @@ const PAGE_CONFIG: Record<TournamentPageMode, PageConfig> = {
     alreadyJoinedText: 'Tu es déjà inscrit à ce tournoi.',
     fullText: 'Ce tournoi est complet.',
     joinErrorText: 'Impossible de rejoindre ce tournoi.',
+    unregisterErrorText: 'Impossible de te désinscrire de ce tournoi.',
     joinedText: 'Inscription au tournoi confirmée.',
+    unregisteredText: 'Désinscription confirmée.',
     searchingTableText: 'Inscription confirmée, recherche de ta table...',
     registeredTablePendingText: 'Inscription confirmée. Ta table sera disponible bientôt.',
     noTableText: 'Aucune table disponible pour ce tournoi.',
     rowKind: 'tournament',
-    filter: tournament => tournament.max_players > 8,
+    filter: tournament => tournament.max_players >= TOURNAMENT_PAGE_MIN_PLAYERS,
   },
   sng: {
     dataName: 'Main Page - sng',
@@ -102,17 +111,23 @@ const PAGE_CONFIG: Record<TournamentPageMode, PageConfig> = {
     alreadyJoinedText: 'Tu es déjà inscrit à ce Sit&GO.',
     fullText: 'Ce Sit&GO est complet.',
     joinErrorText: 'Impossible de rejoindre ce Sit&GO.',
+    unregisterErrorText: 'Impossible de te désinscrire de ce Sit&GO.',
     joinedText: 'Inscription au Sit&GO confirmée.',
+    unregisteredText: 'Désinscription confirmée.',
     searchingTableText: 'Inscription confirmée, recherche de ta table...',
     registeredTablePendingText: 'Inscription confirmée. Ta table sera disponible bientôt.',
     noTableText: 'Aucune table disponible pour ce Sit&GO.',
     rowKind: 'sng',
-    filter: tournament => tournament.max_players <= 8 && !isTrioTournament(tournament) && !isHeadupTournament(tournament),
+    filter: tournament =>
+      tournament.max_players < TOURNAMENT_PAGE_MIN_PLAYERS &&
+      !isTrioTournament(tournament) &&
+      !isHeadupTournament(tournament),
     pageClassName: styles.pageSng,
   },
 };
 
 const ROW_LIMIT = 10;
+const REGISTRATION_CLOSED_AFTER_LEVEL = 10;
 
 function getGameModes(activeMode: TournamentPageMode) {
   return [
@@ -167,11 +182,34 @@ function statusClass(tournament: TournamentRow, rowKind: PageConfig['rowKind']) 
   const start = new Date(tournament.start_date).getTime();
   const now = Date.now();
   const filled = tournament.players.length >= tournament.max_players;
+  const closed = rowKind === 'tournament' && isRegistrationClosed(tournament);
 
-  if (filled) return styles.statusUnavailable;
+  if (filled || closed) return styles.statusUnavailable;
   if (rowKind === 'sng') return styles.statusFuture;
   if (start <= now) return styles.statusJoinable;
   return styles.statusFuture;
+}
+
+function getCurrentTournamentLevel(tournament: TournamentRow) {
+  if (typeof tournament.current_level === 'number') {
+    return tournament.current_level;
+  }
+
+  const startTime = new Date(tournament.start_date).getTime();
+  const levelMinutes = Number(tournament.time_per_level);
+  if (!Number.isFinite(startTime) || !Number.isFinite(levelMinutes) || levelMinutes <= 0) {
+    return 0;
+  }
+
+  const elapsedMs = Date.now() - startTime;
+  if (elapsedMs < 0) return 0;
+
+  return Math.floor(elapsedMs / (levelMinutes * 60_000)) + 1;
+}
+
+function isRegistrationClosed(tournament: TournamentRow) {
+  if (tournament.max_players < TOURNAMENT_PAGE_MIN_PLAYERS) return false;
+  return Boolean(tournament.registration_closed) || getCurrentTournamentLevel(tournament) > REGISTRATION_CLOSED_AFTER_LEVEL;
 }
 
 export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: TournamentPageMode }) {
@@ -203,6 +241,16 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
     [assignedTableIds, cachedActiveTables, dismissedEliminations, tournaments, user]
   );
 
+  const searchableTournaments = useMemo(
+    () => tournaments
+      .filter(tournament => config.rowKind !== 'tournament' || !isRegistrationClosed(tournament))
+      .filter(tournament => config.rowKind !== 'sng' || tournament.players.length < tournament.max_players)
+      .slice()
+      .sort((left, right) => new Date(left.start_date).getTime() - new Date(right.start_date).getTime())
+      .slice(0, ROW_LIMIT),
+    [config.rowKind, tournaments]
+  );
+
   const formatPlayersCount = (tournament: TournamentRow) => {
     const registeredPlayers = tournament.players.length;
     if (config.rowKind === 'sng') {
@@ -230,8 +278,7 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
         setAlivePlayersByTournament({});
       } else {
         const nextTournaments = ((data?.tournaments ?? []) as TournamentRow[])
-          .filter(config.filter)
-          .slice(0, ROW_LIMIT);
+          .filter(config.filter);
         setTournaments(nextTournaments);
 
         const tournamentIds = nextTournaments.map(tournament => tournament.id);
@@ -377,6 +424,11 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
       return;
     }
 
+    if (isRegistrationClosed(tournament)) {
+      setFeedback(`Les inscriptions sont fermées après le niveau ${REGISTRATION_CLOSED_AFTER_LEVEL}.`);
+      return;
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       navigate('/login');
@@ -414,6 +466,57 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
     }
   };
 
+  const unregisterTournament = async (tournament: TournamentRow) => {
+    setSelectedTournamentId(tournament.id);
+    window.setTimeout(() => setSelectedTournamentId(current => current === tournament.id ? null : current), 450);
+
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      navigate('/login');
+      return;
+    }
+
+    const { data, error } = await supabase.functions.invoke('unregister-tournament', {
+      body: { tournamentId: tournament.id },
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+
+    if (error || data?.error) {
+      setFeedback(data?.error || error?.message || config.unregisterErrorText);
+      return;
+    }
+
+    const updatedTournament = data?.tournament as TournamentRow | undefined;
+    if (!updatedTournament) {
+      setFeedback(config.unregisterErrorText);
+      return;
+    }
+
+    setFeedback(config.unregisteredText);
+    setAssignedTableIds(current => {
+      const next = { ...current };
+      delete next[tournament.id];
+      return next;
+    });
+    setTournaments(current =>
+      current.map(item => item.id === tournament.id ? updatedTournament : item)
+    );
+  };
+
+  const handleTournamentAction = (tournament: TournamentRow) => {
+    if (user && tournament.players.includes(user.id)) {
+      void unregisterTournament(tournament);
+      return;
+    }
+
+    void joinTournament(tournament);
+  };
+
   const openTournamentTable = async (tournament: TournamentRow) => {
     if (!user) {
       navigate('/login');
@@ -444,7 +547,7 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
     <div className={`${styles.page} ${config.pageClassName ?? ''}`} data-name={config.dataName}>
       <aside className={styles.sidebar}>
         <button className={styles.logoWrap} onClick={() => navigate('/home')} aria-label="Accueil">
-          <img src="/figma/main-page-nothing/pkr-logo-black-bg.png" alt="PKR" className={styles.logoImg} />
+          <img src={getPublicUrl('/figma/main-page-nothing/pkr-logo-black-bg.png')} alt="PKR" className={styles.logoImg} />
         </button>
 
         <nav className={styles.modeList}>
@@ -462,7 +565,7 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
 
         <div className={styles.bottomIcons}>
           <button className={styles.iconBtn} onClick={() => navigate('/settings')} title="Paramètres">
-            <img src="/figma/main-page-nothing/settings-icon.svg" alt="" className={styles.iconImg} />
+            <img src={getPublicUrl('/figma/main-page-nothing/settings-icon.svg')} alt="" className={styles.iconImg} />
           </button>
           <button className={styles.iconBtn} onClick={() => setOpenProfile(true)} title="Profil">
             <PlayerAvatar
@@ -509,13 +612,14 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
               <div className={styles.empty}>{config.loadingText}</div>
             )}
 
-            {!loading && tournaments.length === 0 && (
+            {!loading && searchableTournaments.length === 0 && (
               <div className={styles.empty}>{config.emptyText}</div>
             )}
 
-            {!loading && tournaments.map((tournament, index) => {
+            {!loading && searchableTournaments.map((tournament, index) => {
               const joined = Boolean(user && tournament.players.includes(user.id));
               const full = tournament.players.length >= tournament.max_players;
+              const closed = config.rowKind === 'tournament' && isRegistrationClosed(tournament);
               const structureLabel = config.rowKind === 'sng'
                 ? formatSngStructure(tournament)
                 : `${tournament.time_per_level} min/niveau${tournament.ranked ? ' - Classé' : ''}`;
@@ -543,10 +647,10 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
                   </div>
                   <button
                     className={`${styles.joinBtn} ${selectedTournamentId === tournament.id ? styles.joinBtnSelected : ''}`}
-                    onClick={() => joinTournament(tournament)}
-                    disabled={joined || full}
+                    onClick={() => handleTournamentAction(tournament)}
+                    disabled={!joined && (full || closed)}
                   >
-                    {joined ? 'Inscrit' : full ? 'Complet' : 'Rejoindre'}
+                    {joined ? 'Désinscrire' : closed ? 'Fermé' : full ? 'Complet' : 'Rejoindre'}
                   </button>
                 </div>
               );
@@ -611,6 +715,8 @@ function mergeActiveTournamentTabs(
       ranked: current?.ranked ?? true,
       time_per_level: current?.time_per_level ?? 0,
       alive_players_count: current?.alive_players_count,
+      current_level: current?.current_level,
+      registration_closed: current?.registration_closed,
       tableId: entry.tableId,
     });
   });

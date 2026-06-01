@@ -192,8 +192,8 @@ function getTournamentReturnPath(tableEntry: ActiveTableEntry, fallback: string)
   const name = tableEntry.tournamentName?.trim() ?? '';
   if (/^triple\s+(normal|turbo)$/i.test(name)) return '/trio';
   if (/^headup\s+(normal|turbo)$/i.test(name)) return '/headup';
-  if (typeof tableEntry.maxPlayers === 'number' && tableEntry.maxPlayers <= 8) return '/sng';
-  if (typeof tableEntry.maxPlayers === 'number' && tableEntry.maxPlayers > 8) return '/tournaments';
+  if (typeof tableEntry.maxPlayers === 'number' && tableEntry.maxPlayers < 20) return '/sng';
+  if (typeof tableEntry.maxPlayers === 'number' && tableEntry.maxPlayers >= 20) return '/tournaments';
   return fallback;
 }
 
@@ -486,6 +486,47 @@ export default function Game() {
     setActiveTables(getActiveTablesForUser(user.id));
     return watchActiveTablesForUser(user.id, setActiveTables);
   }, [user]);
+
+  useEffect(() => {
+    if (!resolvedTournamentId) return;
+
+    let cancelled = false;
+    const shouldStayOnTable = () => (
+      isTableEnded(tableRef.current?.game_status) ||
+      heroEliminated ||
+      heroWonTournament
+    );
+
+    const checkTournamentStillExists = async () => {
+      const { data, error } = await supabase
+        .from('tournaments')
+        .select('id')
+        .eq('id', resolvedTournamentId)
+        .maybeSingle();
+
+      if (cancelled || error || data || shouldStayOnTable()) return;
+
+      setFeedback('Tournoi annulé.');
+      navigate(tournamentListPath, { replace: true });
+    };
+
+    void checkTournamentStillExists();
+    const interval = window.setInterval(checkTournamentStillExists, 5000);
+    const channel = supabase
+      .channel(`game-tournament-exists-${resolvedTournamentId}`)
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'tournaments', filter: `id=eq.${resolvedTournamentId}` },
+        checkTournamentStillExists
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      void supabase.removeChannel(channel);
+    };
+  }, [heroEliminated, heroWonTournament, navigate, resolvedTournamentId, tournamentListPath]);
 
   useEffect(() => {
     clearPendingActionTimeout();
@@ -1055,66 +1096,78 @@ export default function Game() {
               <div />
             </div>
           )}
-          <div
-            className={styles.presetRow}
-            style={{ '--preset-count': activePresetCount + 1 } as CSSProperties}
-          >
-            {isPreflop
-              ? preflopBetPresets.map(bigBlinds => (
+          <div className={styles.choicePanel}>
+            <div
+              className={styles.presetRow}
+              style={{ '--preset-count': activePresetCount + 1 } as CSSProperties}
+            >
+              {isPreflop
+                ? preflopBetPresets.map(bigBlinds => {
+                  const presetValue = formatRaiseInputFromChips(getPreflopPresetRaiseToChips(bigBlinds));
+                  const selected = exactAllInRaiseTo === null && raiseTo === presetValue;
+
+                  return (
+                    <button
+                      key={bigBlinds}
+                      className={`${styles.presetBtn} ${selected ? styles.presetBtnSelected : ''}`}
+                      onClick={() => {
+                        setExactAllInRaiseTo(null);
+                        setRaiseTo(presetValue);
+                      }}
+                    >
+                      {formatInputValue(bigBlinds)}BB
+                    </button>
+                  );
+                })
+                : betPresets.map(percent => {
+                  const presetValue = formatRaiseInputFromChips(getPresetRaiseToChips(percent));
+                  const selected = exactAllInRaiseTo === null && raiseTo === presetValue;
+
+                  return (
+                    <button
+                      key={percent}
+                      className={`${styles.presetBtn} ${selected ? styles.presetBtnSelected : ''}`}
+                      onClick={() => {
+                        setExactAllInRaiseTo(null);
+                        setRaiseTo(presetValue);
+                      }}
+                    >
+                      {percent}%
+                    </button>
+                  );
+                })}
+              <button className={`${styles.presetBtn} ${styles.allInPresetBtn} ${exactAllInRaiseTo !== null ? styles.presetBtnSelected : ''}`} onClick={selectAllInRaise}>
+                All-in
+              </button>
+            </div>
+            <div className={styles.actionRow}>
+              {(['FOLD', checkOrCallAction, 'RAISE'] as PlayerAction[]).map(action => (
                 <button
-                  key={bigBlinds}
-                  className={styles.presetBtn}
-                  onClick={() => {
-                    setExactAllInRaiseTo(null);
-                    setRaiseTo(formatRaiseInputFromChips(getPreflopPresetRaiseToChips(bigBlinds)));
-                  }}
+                  key={action}
+                  className={`${styles.actionBtn} ${action === 'RAISE' ? styles.actionBtnRaise : ''} ${selectedAction === action ? styles.actionBtnSelected : ''} ${!canAttemptAction ? styles.actionBtnDisabled : ''}`}
+                  aria-disabled={!canAttemptAction}
+                  onClick={() => sendAction(action)}
                 >
-                  {formatInputValue(bigBlinds)}BB
-                </button>
-              ))
-              : betPresets.map(percent => (
-                <button
-                  key={percent}
-                  className={styles.presetBtn}
-                  onClick={() => {
-                    setExactAllInRaiseTo(null);
-                    setRaiseTo(formatRaiseInputFromChips(getPresetRaiseToChips(percent)));
-                  }}
-                >
-                  {percent}%
+                  {ACTION_LABELS[action]}
                 </button>
               ))}
-            <button className={`${styles.presetBtn} ${styles.allInPresetBtn}`} onClick={selectAllInRaise}>
-              All-in
-            </button>
-          </div>
-          <div className={styles.actionRow}>
-            {(['FOLD', checkOrCallAction, 'RAISE'] as PlayerAction[]).map(action => (
-              <button
-                key={action}
-                className={`${styles.actionBtn} ${selectedAction === action ? styles.actionBtnSelected : ''} ${!canAttemptAction ? styles.actionBtnDisabled : ''}`}
-                aria-disabled={!canAttemptAction}
-                onClick={() => sendAction(action)}
-              >
-                {ACTION_LABELS[action]}
-              </button>
-            ))}
-            <div className={styles.amountAction}>
-              <input
-                className={styles.raiseInput}
-                value={raiseTo}
-                onChange={event => {
-                  setExactAllInRaiseTo(null);
-                  setRaiseTo(event.target.value);
-                }}
-                onKeyDown={event => {
-                  if (event.key === 'Enter') void sendAction('RAISE');
-                }}
-                placeholder="Relance"
-                inputMode="numeric"
-                aria-label="Montant de relance"
-                disabled={!canAttemptAction}
-              />
+              <div className={styles.amountAction}>
+                <input
+                  className={styles.raiseInput}
+                  value={raiseTo}
+                  onChange={event => {
+                    setExactAllInRaiseTo(null);
+                    setRaiseTo(event.target.value);
+                  }}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') void sendAction('RAISE');
+                  }}
+                  placeholder="1"
+                  inputMode="numeric"
+                  aria-label="Montant de relance"
+                  disabled={!canAttemptAction}
+                />
+              </div>
             </div>
           </div>
           <p className={styles.feedback}>{feedback || (canAttemptAction ? 'À toi de jouer.' : isHeroTurn ? 'Préparation de ton action...' : 'En attente des autres joueurs.')}</p>

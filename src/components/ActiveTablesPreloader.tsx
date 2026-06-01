@@ -50,6 +50,10 @@ function sameTournamentRows(left: ActiveTournamentRow[], right: ActiveTournament
   return left.every((row, index) => tournamentFingerprint(row) === tournamentFingerprint(right[index]));
 }
 
+function isEndedTableStatus(status: unknown) {
+  return status === 3 || status === '3' || status === 'ENDED';
+}
+
 export function ActiveTablesPreloader() {
   const { user, session, loading } = useAuth();
   const userId = user?.id;
@@ -150,7 +154,7 @@ export function ActiveTablesPreloader() {
       const next = Object.entries(current).reduce<Record<number, number>>((accumulator, [rawTournamentId, tableId]) => {
         const tournamentId = Number(rawTournamentId);
         const cachedState = getCachedTableState(tableId);
-        const keepKnownTable = cachedState && !dismissedEliminations.has(tableId);
+        const keepKnownTable = cachedState && isEndedTableStatus(cachedState.game_status) && !dismissedEliminations.has(tableId);
         if (activeIds.has(tournamentId) || keepKnownTable) {
           accumulator[tournamentId] = tableId;
         }

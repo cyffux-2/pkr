@@ -5,6 +5,7 @@ import LocalTournamentLeaderboard from '../components/LocalTournamentLeaderboard
 import PlayerAvatar from '../components/PlayerAvatar';
 import { TournamentTableTab } from '../components/TournamentTableTab';
 import { useAuth } from '../context/AuthContext';
+import { getPublicUrl } from '../lib/publicUrl';
 import {
   getActiveTablesForUser,
   type ActiveTableEntry,
@@ -231,7 +232,7 @@ export default function Trio() {
     <div className={`${styles.page} ${styles.pageTrio}`} data-name="Main Page - expresso">
       <aside className={styles.sidebar}>
         <button className={styles.logoWrap} onClick={() => navigate('/home')} aria-label="Accueil">
-          <img src="/figma/main-page-nothing/pkr-logo-black-bg.png" alt="PKR" className={styles.logoImg} />
+          <img src={getPublicUrl('/figma/main-page-nothing/pkr-logo-black-bg.png')} alt="PKR" className={styles.logoImg} />
         </button>
 
         <nav className={styles.modeList}>
@@ -249,7 +250,7 @@ export default function Trio() {
 
         <div className={styles.bottomIcons}>
           <button className={styles.iconBtn} onClick={() => navigate('/settings')} title="Paramètres">
-            <img src="/figma/main-page-nothing/settings-icon.svg" alt="" className={styles.iconImg} />
+            <img src={getPublicUrl('/figma/main-page-nothing/settings-icon.svg')} alt="" className={styles.iconImg} />
           </button>
           <button className={styles.iconBtn} onClick={() => setOpenProfile(true)} title="Profil">
             <PlayerAvatar

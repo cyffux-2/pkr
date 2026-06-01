@@ -7,7 +7,9 @@ const corsHeaders = {
 }
 
 const maxActiveTournaments = 4
+const registrationClosedAfterLevel = 10
 const registrationLimitError = `Tu ne peux pas rejoindre plus de ${maxActiveTournaments} tournois en simultané.`
+const registrationClosedError = `Les inscriptions sont fermées après le niveau ${registrationClosedAfterLevel}.`
 
 async function countActiveTournamentsForUser(admin, userId) {
   const { data, error } = await admin.rpc('count_active_tournament_registrations', {
@@ -32,9 +34,31 @@ async function isActiveTournamentRegistration(admin, tournamentId, userId) {
 
 function normalizeJoinError(error) {
   const message = error?.message ?? ''
-  return message.includes('Tournament registration limit reached')
-    ? registrationLimitError
-    : message || 'Tournament join failed'
+  if (message.includes('Tournament registration limit reached')) return registrationLimitError
+  if (
+    message.includes('Tournament registration closed after level 10') ||
+    message.includes('Les inscriptions sont fermées après le niveau 10')
+  ) return registrationClosedError
+  return message || 'Tournament join failed'
+}
+
+function getCurrentLevel(tournament) {
+  const startTime = new Date(tournament.start_date).getTime()
+  const levelMinutes = Number(tournament.time_per_level)
+
+  if (!Number.isFinite(startTime) || !Number.isFinite(levelMinutes) || levelMinutes <= 0) {
+    return 0
+  }
+
+  const elapsedMs = Date.now() - startTime
+  if (elapsedMs < 0) return 0
+
+  return Math.floor(elapsedMs / (levelMinutes * 60_000)) + 1
+}
+
+function isRegistrationClosed(tournament) {
+  if (Number(tournament.max_players) < 20) return false
+  return getCurrentLevel(tournament) > registrationClosedAfterLevel
 }
 
 Deno.serve(async (req) => {
@@ -88,6 +112,13 @@ Deno.serve(async (req) => {
       const activeRegistration = await isActiveTournamentRegistration(admin, tournament.id, userId)
       return new Response(JSON.stringify(activeRegistration ? { tournament } : { error: 'Tu as déjà été éliminé de ce tournoi.' }), {
         status: activeRegistration ? 200 : 409,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (isRegistrationClosed(tournament)) {
+      return new Response(JSON.stringify({ error: registrationClosedError }), {
+        status: 409,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }

@@ -43,8 +43,8 @@ function getTournamentReturnPath(tableEntry: ActiveTableEntry, currentPathname: 
   const name = tableEntry.tournamentName?.trim() ?? '';
   if (/^triple\s+(normal|turbo)$/i.test(name)) return '/trio';
   if (/^headup\s+(normal|turbo)$/i.test(name)) return '/headup';
-  if (typeof tableEntry.maxPlayers === 'number' && tableEntry.maxPlayers <= 8) return '/sng';
-  if (typeof tableEntry.maxPlayers === 'number' && tableEntry.maxPlayers > 8) return '/tournaments';
+  if (typeof tableEntry.maxPlayers === 'number' && tableEntry.maxPlayers < 20) return '/sng';
+  if (typeof tableEntry.maxPlayers === 'number' && tableEntry.maxPlayers >= 20) return '/tournaments';
   if (currentPathname === '/sng' || currentPathname === '/trio' || currentPathname === '/headup') return currentPathname;
   return '/tournaments';
 }

@@ -28,6 +28,21 @@
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
     <title>PKR - Poker en ligne</title>
+    <script type="text/javascript">
+      // Handle GitHub Pages SPA routing restoration
+      // When 404.html redirects from /pkr/login to /pkr/?/login,
+      // this script restores the original path so React Router can handle it
+      (function() {
+        if (window.location.search[1] === '/') {
+          var decoded = decodeURIComponent(window.location.search.slice(2)).replace(/~and~/g, '&');
+          window.history.replaceState(
+            null,
+            null,
+            window.location.pathname.slice(0, -1) + decoded + window.location.hash
+          );
+        }
+      }());
+    </script>
   </head>
   <body>
     <noscript>Tu dois activer JavaScript pour utiliser PKR.</noscript>

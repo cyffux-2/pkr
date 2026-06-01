@@ -196,6 +196,29 @@
   transition: filter 80ms ease, transform 80ms ease;
 }
 
+.unregisterButton {
+  min-width: 172px;
+  height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 21px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.92);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: filter 80ms ease, transform 80ms ease, background 80ms ease;
+}
+
+.unregisterButton:hover {
+  background: rgba(255, 85, 85, 0.34);
+  filter: brightness(0.82);
+}
+
+.unregisterButton:active {
+  transform: scale(0.97);
+}
+
 .backTournamentButton:hover {
   filter: brightness(0.72);
 }

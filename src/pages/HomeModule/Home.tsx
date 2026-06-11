@@ -2,15 +2,19 @@ import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { getPublicUrl } from '../../lib/publicUrl';
 import { ensureTournamentTableConnection, getCachedTournamentTable } from '../../lib/tournamentConnections';
 import { ensureTableStateCache } from '../../lib/tableStateCache';
-import { watchDismissedEliminatedTables } from '../../lib/eliminatedTournamentDismissals';
+import {
+  isDismissedElimination,
+  watchDismissedEliminatedTables,
+  type DismissedEliminationKey,
+} from '../../lib/eliminatedTournamentDismissals';
 import {
   getActiveTablesForUser,
   watchActiveTablesForUser,
   type ActiveTableEntry,
 } from '../../lib/activeTablesRegistry';
+import { getPublicUrl } from '../../lib/publicUrl';
 import { formatLiveStatNumber, useLiveSiteStats } from '../../lib/useLiveSiteStats';
 import PlayerAvatar from '../../components/PlayerAvatar';
 import { TournamentTableTab } from '../../components/TournamentTableTab';
@@ -50,12 +54,12 @@ const HOME_CAROUSEL_IMAGES = loadHomeCarouselImages();
 
 export default function Home() {
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user, profile, getValidSession } = useAuth();
 
   const [popupOpen,    setPopupOpen]    = useState(false);
   const [activeTournaments, setActiveTournaments] = useState<ActiveTournament[]>([]);
   const [cachedActiveTables, setCachedActiveTables] = useState<ActiveTableEntry[]>([]);
-  const [dismissedEliminations, setDismissedEliminations] = useState<Set<number>>(new Set());
+  const [dismissedEliminations, setDismissedEliminations] = useState<Set<DismissedEliminationKey>>(new Set());
   const [selectedTableTournamentId, setSelectedTableTournamentId] = useState<number | null>(null);
   const [assignedTableIds, setAssignedTableIds] = useState<Record<number, number>>({});
   const { stats: homeStats, loading: homeStatsLoading } = useLiveSiteStats();
@@ -139,7 +143,7 @@ export default function Home() {
       if (!user) return false;
 
       const tableId = tournament.tableId ?? assignedTableIds[tournament.id] ?? getCachedTournamentTable(tournament.id, user.id);
-      return !tableId || !dismissedEliminations.has(tableId);
+      return !isDismissedElimination(dismissedEliminations, tableId, tournament.id);
     }),
     [activeTournaments, assignedTableIds, cachedActiveTables, dismissedEliminations, user],
   );
@@ -148,7 +152,7 @@ export default function Home() {
     if (!user || visibleActiveTournaments.length === 0) return;
 
     const setup = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getValidSession();
       if (!session?.access_token) return;
 
       for (const tournament of visibleActiveTournaments) {
@@ -170,7 +174,7 @@ export default function Home() {
     };
 
     setup();
-  }, [visibleActiveTournaments, user]);
+  }, [getValidSession, visibleActiveTournaments, user]);
 
   const showPreviousCarouselImage = () => {
     if (carouselImageCount <= 1) return;
@@ -193,7 +197,7 @@ export default function Home() {
       setSelectedTableTournamentId(current => current === tournament.id ? null : current);
     }, 450);
 
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getValidSession();
     if (!session?.access_token) {
       navigate('/login');
       return;

@@ -29,6 +29,7 @@ type ProfileRow = {
   user_id: string;
   username: string | null;
   avatar_url: string | null;
+  tag?: string | null;
 };
 
 type LeaderboardEntry = {
@@ -125,6 +126,7 @@ function buildLeaderboard(mode: LocalLeaderboardMode, results: TournamentResultR
         if (!userId) return;
 
         const profile = profilesById.get(userId);
+        if (!profile) return;
         const current = entries.get(userId) ?? {
           userId,
           username: profile?.username || player.username || 'Joueur',
@@ -172,7 +174,8 @@ export default function LocalTournamentLeaderboard({ mode, title }: { mode: Loca
       const [profilesResponse, resultsResponse] = await Promise.all([
         supabase
           .from('profiles')
-          .select('user_id, username, avatar_url'),
+          .select('user_id, username, avatar_url, tag')
+          .or('tag.is.null,tag.neq.BOT'),
         supabase
           .from('tournament_results')
           .select('players, winner_ids, elo_delta, tournament_finished_at, tournament_name')

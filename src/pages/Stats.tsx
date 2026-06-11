@@ -33,6 +33,7 @@ export default function Stats() {
       const { data: leaderboardRows } = await supabase
         .from('profiles')
         .select('user_id, elo')
+        .or('tag.is.null,tag.neq.BOT')
         .order('elo', { ascending: false });
 
       if (cancelled) return;

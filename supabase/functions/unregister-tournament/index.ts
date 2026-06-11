@@ -6,6 +6,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+function hasTournamentStarted(tournament, players) {
+  const maxPlayers = Number(tournament.max_players)
+
+  if (Number.isFinite(maxPlayers) && maxPlayers < 20) {
+    return players.length >= maxPlayers
+  }
+
+  return new Date(tournament.start_date).getTime() <= Date.now()
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -76,7 +86,7 @@ Deno.serve(async (req) => {
       Array.isArray(table.players) && table.players.includes(userId)
     )
     const playerHasTable = playerTables.length > 0
-    const tournamentStarted = new Date(tournament.start_date).getTime() <= Date.now()
+    const tournamentStarted = hasTournamentStarted(tournament, players)
 
     if (playerHasTable && tournamentStarted) {
       return new Response(JSON.stringify({ error: 'La désinscription est impossible après le début du tournoi.' }), {
@@ -104,16 +114,30 @@ Deno.serve(async (req) => {
       const tablePlayers = Array.isArray(table.players) ? table.players : []
       const nextTablePlayers = tablePlayers.filter((playerId) => playerId !== userId)
 
-      const { error: updateTableError } = await admin
-        .from('poker-tables')
-        .update({ players: nextTablePlayers })
-        .eq('id', table.id)
+      if (nextTablePlayers.length === 0) {
+        const { error: deleteTableError } = await admin
+          .from('poker-tables')
+          .delete()
+          .eq('id', table.id)
 
-      if (updateTableError) {
-        return new Response(JSON.stringify({ error: updateTableError.message }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        if (deleteTableError) {
+          return new Response(JSON.stringify({ error: deleteTableError.message }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+      } else {
+        const { error: updateTableError } = await admin
+          .from('poker-tables')
+          .update({ players: nextTablePlayers })
+          .eq('id', table.id)
+
+        if (updateTableError) {
+          return new Response(JSON.stringify({ error: updateTableError.message }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
       }
     }
 

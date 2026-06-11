@@ -26,7 +26,7 @@ export function translateAuthError(message: string): string {
   }
 
   if (normalized.includes('rate limit') || normalized.includes('too many')) {
-    return 'Trop de tentatives. Réessaie dans quelques instants.';
+    return `Trop de tentatives côté authentification Supabase. Réessaie dans quelques instants. (${message})`;
   }
 
   if (normalized.includes('expired')) {

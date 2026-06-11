@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { translateAuthError } from '../../lib/authErrors';
-import { getPublicUrl } from '../../lib/publicUrl';
 import styles from './auth.module.css';
 
 export default function ResetPassword() {
@@ -96,7 +95,7 @@ export default function ResetPassword() {
 
       <div className={styles.card}>
         <div className={styles.logo}>
-          <img src={getPublicUrl('/logo.png')} alt="Logo PKR" className={styles.logoImage} />
+          <img src="/logo.png" alt="Logo PKR" className={styles.logoImage} />
         </div>
 
         {isExpired ? (

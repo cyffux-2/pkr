@@ -2,15 +2,21 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { getPublicUrl } from '../lib/publicUrl';
-import { ensureTournamentTableConnection, getCachedTournamentTable } from '../lib/tournamentConnections';
+import { closeTournamentConnection, ensureTournamentTableConnection, getCachedTournamentTable } from '../lib/tournamentConnections';
 import { ensureTableStateCache } from '../lib/tableStateCache';
-import { watchDismissedEliminatedTables } from '../lib/eliminatedTournamentDismissals';
+import { clearCachedPrivateCards } from '../lib/privateCardsCache';
+import {
+  isDismissedElimination,
+  watchDismissedEliminatedTables,
+  type DismissedEliminationKey,
+} from '../lib/eliminatedTournamentDismissals';
 import {
   getActiveTablesForUser,
+  removeActiveTournamentForUser,
   watchActiveTablesForUser,
   type ActiveTableEntry,
 } from '../lib/activeTablesRegistry';
+import { getPublicUrl } from '../lib/publicUrl';
 import PlayerAvatar from '../components/PlayerAvatar';
 import { TournamentTableTab } from '../components/TournamentTableTab';
 import { ProfilePopup } from './ProfilModule/ProfilePopup';
@@ -214,7 +220,7 @@ function isRegistrationClosed(tournament: TournamentRow) {
 
 export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: TournamentPageMode }) {
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user, profile, getValidSession } = useAuth();
   const config = PAGE_CONFIG[mode];
   const [tournaments, setTournaments] = useState<TournamentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -223,7 +229,7 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
   const [selectedTableTournamentId, setSelectedTableTournamentId] = useState<number | null>(null);
   const [assignedTableIds, setAssignedTableIds] = useState<Record<number, number>>({});
   const [alivePlayersByTournament, setAlivePlayersByTournament] = useState<Record<number, number>>({});
-  const [dismissedEliminations, setDismissedEliminations] = useState<Set<number>>(new Set());
+  const [dismissedEliminations, setDismissedEliminations] = useState<Set<DismissedEliminationKey>>(new Set());
   const [cachedActiveTables, setCachedActiveTables] = useState<ActiveTableEntry[]>([]);
   const [openProfile, setOpenProfile] = useState(false);
 
@@ -236,7 +242,7 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
       if (!user) return false;
 
       const tableId = tournament.tableId ?? assignedTableIds[tournament.id] ?? getCachedTournamentTable(tournament.id, user.id);
-      return !dismissedEliminations.has(tableId ?? -1);
+      return !isDismissedElimination(dismissedEliminations, tableId, tournament.id);
     }),
     [assignedTableIds, cachedActiveTables, dismissedEliminations, tournaments, user]
   );
@@ -360,7 +366,7 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
       return null;
     }
 
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getValidSession();
     if (!session?.access_token) {
       navigate('/login');
       return null;
@@ -375,13 +381,13 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
         void ensureTableStateCache(tableId);
       },
     });
-  }, [navigate, user]);
+  }, [getValidSession, navigate, user]);
 
   useEffect(() => {
     if (!user || activeTournaments.length === 0) return;
 
     const setup = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getValidSession();
       if (!session?.access_token) return;
 
       for (const tournament of activeTournaments) {
@@ -403,7 +409,7 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
     };
 
     setup();
-  }, [activeTournaments, user]);
+  }, [activeTournaments, getValidSession, user]);
 
   const joinTournament = async (tournament: TournamentRow) => {
     setSelectedTournamentId(tournament.id);
@@ -429,7 +435,7 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
       return;
     }
 
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getValidSession();
     if (!session?.access_token) {
       navigate('/login');
       return;
@@ -475,7 +481,7 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
       return;
     }
 
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getValidSession();
     if (!session?.access_token) {
       navigate('/login');
       return;
@@ -498,6 +504,12 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
     }
 
     setFeedback(config.unregisteredText);
+    const previousTableId = assignedTableIds[tournament.id] ?? getCachedTournamentTable(tournament.id, user.id);
+    if (previousTableId) {
+      clearCachedPrivateCards(previousTableId, user.id);
+    }
+    removeActiveTournamentForUser(user.id, tournament.id);
+    closeTournamentConnection(tournament.id, user.id);
     setAssignedTableIds(current => {
       const next = { ...current };
       delete next[tournament.id];

@@ -1,6 +1,8 @@
 .page {
   --sidebar-width: 322px;
   --bottom-bar-height: 112px;
+  --central-panel-width: min(1120px, 100%);
+  --central-panel-min-height: 820px;
 
   width: 100%;
   height: var(--app-viewport-height);
@@ -156,9 +158,9 @@
 
 .panel {
   position: relative;
-  width: min(1018px, 100%);
-  min-height: 790px;
-  padding: 60px 19px 140px;
+  width: var(--central-panel-width);
+  min-height: var(--central-panel-min-height);
+  padding: 64px 28px 140px;
   border: 1px solid rgba(31, 173, 255, 0.2);
   border-radius: 44px;
   background: rgba(6, 14, 27, 0.56);
@@ -450,6 +452,10 @@
 }
 
 @media (max-height: 920px) {
+  .page {
+    --central-panel-min-height: 650px;
+  }
+
   .sidebar {
     gap: 22px;
     padding-top: 36px;
@@ -500,7 +506,7 @@
   }
 
   .panel {
-    min-height: 620px;
+    min-height: var(--central-panel-min-height);
   }
 }
 
@@ -595,8 +601,8 @@
 }
 
 .pageSng .panel {
-  min-height: 790px;
-  padding: 60px 19px 140px;
+  min-height: var(--central-panel-min-height);
+  padding: 64px 28px 140px;
   border-color: rgba(184, 51, 255, 0.22);
   background: rgba(14, 7, 27, 0.56);
 }
@@ -650,26 +656,26 @@
 }
 
 .sngTable {
-  width: min(911px, 100%);
+  width: min(1040px, 100%);
 }
 
 .sngTable .row {
-  grid-template-columns: 7px minmax(112px, 1fr) minmax(74px, 0.72fr) minmax(82px, 0.74fr) minmax(138px, 1.32fr) clamp(78px, 9vw, 110px);
-  column-gap: clamp(18px, 2.4vw, 35px);
+  grid-template-columns: 7px minmax(180px, 1.38fr) minmax(74px, 0.58fr) minmax(82px, 0.62fr) minmax(150px, 1fr) clamp(90px, 8vw, 118px);
+  column-gap: clamp(14px, 1.8vw, 28px);
   min-height: 54px;
-  padding: 0 12px 0 22px;
+  padding: 0 16px 0 24px;
   border-radius: 18px;
   font-size: 20px;
 }
 
 .sngTable .header {
-  grid-template-columns: minmax(112px, 1fr) minmax(74px, 0.72fr) minmax(82px, 0.74fr) minmax(138px, 1.32fr) clamp(78px, 9vw, 110px);
-  padding-left: 48px;
+  grid-template-columns: minmax(180px, 1.38fr) minmax(74px, 0.58fr) minmax(82px, 0.62fr) minmax(150px, 1fr) clamp(90px, 8vw, 118px);
+  padding-left: 52px;
   font-size: 16px;
 }
 
 .sngTable .structure {
-  width: min(228px, 100%);
+  width: min(250px, 100%);
   font-size: 16px;
 }
 
@@ -699,7 +705,7 @@
 
 @media (max-height: 920px) {
   .pageSng .panel {
-    min-height: 620px;
+    min-height: var(--central-panel-min-height);
   }
 }
 
@@ -737,8 +743,8 @@
 
 .trioPanel {
   position: relative;
-  width: min(1018px, 100%);
-  min-height: 790px;
+  width: var(--central-panel-width);
+  min-height: var(--central-panel-min-height);
   border: 1px solid rgba(255, 209, 20, 0.28);
   border-radius: 44px;
   background: rgba(31, 20, 5, 0.58);
@@ -865,8 +871,8 @@
 
 .headupPanel {
   position: relative;
-  width: min(1018px, 100%);
-  min-height: 790px;
+  width: var(--central-panel-width);
+  min-height: var(--central-panel-min-height);
   border: 1px solid rgba(46, 255, 97, 0.22);
   border-radius: 44px;
   background: rgba(5, 24, 11, 0.58);
@@ -976,7 +982,7 @@
 
 @media (max-height: 920px) {
   .trioPanel {
-    min-height: 620px;
+    min-height: var(--central-panel-min-height);
   }
 
   .trioChoices {
@@ -999,7 +1005,7 @@
   }
 
   .headupPanel {
-    min-height: 620px;
+    min-height: var(--central-panel-min-height);
   }
 
   .headupChoices {

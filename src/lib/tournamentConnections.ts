@@ -17,7 +17,7 @@ type PokerTableRow = {
 };
 
 const connections = new Map<string, Connection>();
-const enableEdgeFunctionTableFallback = process.env.REACT_APP_ENABLE_GET_TOURNAMENT_TABLE_FUNCTION === '1';
+const enableEdgeFunctionTableFallback = process.env.REACT_APP_ENABLE_GET_TOURNAMENT_TABLE_FUNCTION !== '0';
 
 function connectionKey(tournamentId: number, userId: string) {
   return `${tournamentId}:${userId}`;
@@ -49,6 +49,18 @@ function pickPlayerTable(rows: PokerTableRow[] | null | undefined, userId: strin
 
 export function getCachedTournamentTable(tournamentId: number, userId: string) {
   return connections.get(connectionKey(tournamentId, userId))?.tableId ?? null;
+}
+
+export function closeTournamentConnection(tournamentId: number, userId: string) {
+  const key = connectionKey(tournamentId, userId);
+  const connection = connections.get(key);
+  if (!connection) return;
+
+  if (connection.interval) window.clearInterval(connection.interval);
+  if (connection.fallbackTimeout) window.clearTimeout(connection.fallbackTimeout);
+  connection.channel.unsubscribe();
+  void supabase.removeChannel(connection.channel);
+  connections.delete(key);
 }
 
 export async function ensureTournamentTableConnection(params: {

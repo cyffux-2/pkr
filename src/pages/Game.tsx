@@ -23,7 +23,9 @@ import {
 } from '../lib/privateCardsCache';
 import {
   dismissEliminatedTable,
+  isDismissedElimination,
   watchDismissedEliminatedTables,
+  type DismissedEliminationKey,
 } from '../lib/eliminatedTournamentDismissals';
 import {
   getActiveTablesForUser,
@@ -63,7 +65,7 @@ const DEFAULT_BET_PRESETS = [50, 100];
 const PREFLOP_BET_PRESET_OPTIONS = [2, 2.5, 3, 3.5, 4, 5];
 const DEFAULT_PREFLOP_BET_PRESETS = [2.5, 3];
 const ACTION_TIMEOUT_MS = 15_000;
-const ACTION_CONFIRMATION_GRACE_MS = 2_500;
+const ACTION_CONFIRMATION_GRACE_MS = 6_500;
 const ACTION_LABELS: Record<PlayerAction, string> = {
   FOLD: 'Fold',
   CHECK: 'Check',
@@ -188,6 +190,25 @@ function isTableEnded(status: TableState['game_status'] | undefined) {
   return status === 3 || status === '3' || status === 'ENDED';
 }
 
+function hasTableEnteredPlay(state: TableState | null | undefined) {
+  if (!state) return false;
+  if (isTableEnded(state.game_status)) return true;
+
+  return Boolean(
+    state.showdown ||
+    state.common_cards.length > 0 ||
+    state.winningPlayerIds?.length ||
+    state.tournamentWinnerIds?.length ||
+    Object.keys(state.eloResults ?? {}).length ||
+    state.events?.length ||
+    typeof state.turnId === 'number' ||
+    typeof state.actionRequestId === 'number' ||
+    typeof state.actionStartedAt === 'number' ||
+    typeof state.actionDeadlineAt === 'number' ||
+    state.players.some(player => Boolean(player?.has_cards || player?.cards?.length))
+  );
+}
+
 function getTournamentReturnPath(tableEntry: ActiveTableEntry, fallback: string) {
   const name = tableEntry.tournamentName?.trim() ?? '';
   if (/^triple\s+(normal|turbo)$/i.test(name)) return '/trio';
@@ -201,7 +222,7 @@ export default function Game() {
   const navigate = useNavigate();
   const location = useLocation();
   const { tableId } = useParams();
-  const { user, loading: authLoading, profile, updateCachedProfile } = useAuth();
+  const { user, loading: authLoading, profile, updateCachedProfile, getValidSession } = useAuth();
 
   const [table, setTable] = useState<TableState | null>(null);
   const [privateCards, setPrivateCards] = useState<WireCard[]>([]);
@@ -216,13 +237,14 @@ export default function Game() {
   const [initialElo, setInitialElo] = useState<number | null>(null);
   const [currentElo, setCurrentElo] = useState<number | null>(null);
   const [heroEliminated, setHeroEliminated] = useState(false);
-  const [dismissedEliminations, setDismissedEliminations] = useState<Set<number>>(new Set());
+  const [dismissedEliminations, setDismissedEliminations] = useState<Set<DismissedEliminationKey>>(new Set());
   const [playerAvatarsById, setPlayerAvatarsById] = useState<Record<string, string | null>>({});
   const [activeTables, setActiveTables] = useState<ActiveTableEntry[]>(() => (
     user?.id ? getActiveTablesForUser(user.id) : []
   ));
   const tableReceivedRef = useRef(false);
   const hadHeroSeatRef = useRef(false);
+  const hasSeenPlayableTableRef = useRef(false);
   const tableRef = useRef<TableState | null>(null);
   const profileEloRef = useRef<number | null>(typeof profile?.elo === 'number' ? profile.elo : null);
   const pendingActionTimeoutRef = useRef<number | null>(null);
@@ -245,7 +267,7 @@ export default function Game() {
   const resolvedTournamentId = typeof lobbyTournamentId === 'number' && Number.isFinite(lobbyTournamentId)
     ? lobbyTournamentId
     : null;
-  const eliminationDismissed = Number.isFinite(numericTableId) && dismissedEliminations.has(numericTableId);
+  const eliminationDismissed = isDismissedElimination(dismissedEliminations, numericTableId, resolvedTournamentId);
   const autoSwitchClass = routeState?.autoTableSwitch
     ? routeState.autoTableSwitchDirection === 'left'
       ? styles.pageAutoSwitchLeft
@@ -253,7 +275,8 @@ export default function Game() {
     : '';
   const switchableTables = useMemo(
     () => activeTables
-      .filter(activeTable => Number.isFinite(activeTable.tableId) && !dismissedEliminations.has(activeTable.tableId))
+      .filter(activeTable => Number.isFinite(activeTable.tableId))
+      .filter(activeTable => !isDismissedElimination(dismissedEliminations, activeTable.tableId, activeTable.tournamentId))
       .sort((left, right) => {
         const leftTime = left.startDate ? new Date(left.startDate).getTime() : 0;
         const rightTime = right.startDate ? new Date(right.startDate).getTime() : 0;
@@ -299,6 +322,18 @@ export default function Game() {
   const tournamentWinnerIds = table?.tournamentWinnerIds ?? [];
   const finalWinnerIds = tournamentWinnerIds.length > 0 ? tournamentWinnerIds : winningPlayerIds;
   const activeActionRequestId = table?.actionRequestId ?? null;
+  const submittedActionConfirmed = Boolean(
+    user?.id &&
+    submittedActionRequestId !== null &&
+    table?.events?.some(event => (
+      event.type === 'player_action' &&
+      event.playerId === user.id &&
+      event.actionRequestId === submittedActionRequestId
+    ))
+  );
+  const heroEliminatedByEvent = Boolean(
+    user?.id && table?.events?.some(event => event.type === 'player_eliminated' && event.playerId === user.id)
+  );
 
   useEffect(() => {
     if (!tablePlayerIdsKey) {
@@ -327,7 +362,11 @@ export default function Game() {
       cancelled = true;
     };
   }, [tablePlayerIdsKey]);
-  const promptAlreadySubmitted = activeActionRequestId !== null && submittedActionRequestId === activeActionRequestId;
+  const promptAlreadySubmitted = (
+    activeActionRequestId !== null &&
+    submittedActionRequestId === activeActionRequestId &&
+    !submittedActionConfirmed
+  );
   const canAttemptAction = isHeroTurn && !promptAlreadySubmitted && !heroAbsent;
   const backendActionDeadline = typeof table?.actionDeadlineAt === 'number' ? table.actionDeadlineAt : null;
   const activeActionDeadline = backendActionDeadline ?? actionDeadline;
@@ -364,6 +403,15 @@ export default function Game() {
     isTableEnded(table?.game_status) &&
     finalWinnerIds.includes(user.id)
   );
+  const heroLostEndedTournament = Boolean(
+    user?.id &&
+    !eliminationDismissed &&
+    isTableEnded(table?.game_status) &&
+    finalWinnerIds.length > 0 &&
+    !finalWinnerIds.includes(user.id) &&
+    (heroEliminated || heroEliminatedByEvent || hadHeroSeatRef.current || resolvedTournamentId !== null)
+  );
+  const showTournamentResultNotice = heroEliminated || heroLostEndedTournament || heroWonTournament;
   const betPresets = useMemo(
     () => getConfiguredBetPresets(user?.user_metadata?.bet_presets),
     [user?.user_metadata?.bet_presets],
@@ -458,6 +506,9 @@ export default function Game() {
 
   useEffect(() => {
     tableRef.current = table;
+    if (hasTableEnteredPlay(table)) {
+      hasSeenPlayableTableRef.current = true;
+    }
   }, [table]);
 
   useEffect(() => {
@@ -491,9 +542,14 @@ export default function Game() {
     if (!resolvedTournamentId) return;
 
     let cancelled = false;
+    let missingChecks = 0;
     const shouldStayOnTable = () => (
+      tableReceivedRef.current ||
+      Boolean(getCachedTableState(numericTableId)) ||
       isTableEnded(tableRef.current?.game_status) ||
+      hasSeenPlayableTableRef.current ||
       heroEliminated ||
+      heroLostEndedTournament ||
       heroWonTournament
     );
 
@@ -505,6 +561,9 @@ export default function Game() {
         .maybeSingle();
 
       if (cancelled || error || data || shouldStayOnTable()) return;
+
+      missingChecks++;
+      if (missingChecks < 3) return;
 
       setFeedback('Tournoi annulé.');
       navigate(tournamentListPath, { replace: true });
@@ -526,11 +585,12 @@ export default function Game() {
       window.clearInterval(interval);
       void supabase.removeChannel(channel);
     };
-  }, [heroEliminated, heroWonTournament, navigate, resolvedTournamentId, tournamentListPath]);
+  }, [heroEliminated, heroLostEndedTournament, heroWonTournament, navigate, numericTableId, resolvedTournamentId, tournamentListPath]);
 
   useEffect(() => {
     clearPendingActionTimeout();
     hadHeroSeatRef.current = false;
+    hasSeenPlayableTableRef.current = false;
     setPrivateCards([]);
     setHeroEliminated(false);
     setCurrentElo(null);
@@ -583,6 +643,15 @@ export default function Game() {
       return;
     }
 
+    if (heroEliminatedByEvent || heroLostEndedTournament) {
+      if (!heroEliminated) {
+        setHeroEliminated(true);
+        setActionDeadline(null);
+        setFeedback('Tu es éliminé. Mode spectateur.');
+      }
+      return;
+    }
+
     if (table.players.length === 0) return;
 
     const heroOnTable = table.players.some(player => player?.id === user.id);
@@ -599,7 +668,7 @@ export default function Game() {
       setActionDeadline(null);
       setFeedback('Tu es éliminé. Mode spectateur.');
     }
-  }, [eliminationDismissed, heroEliminated, resolvedTournamentId, table, user]);
+  }, [eliminationDismissed, heroEliminated, heroEliminatedByEvent, heroLostEndedTournament, resolvedTournamentId, table, user]);
 
   useEffect(() => {
     if ((!heroEliminated && !heroWonTournament) || !user) return;
@@ -646,13 +715,22 @@ export default function Game() {
   useEffect(() => {
     setSubmittedActionRequestId(current => {
       const nextActionRequestId = table?.actionRequestId ?? null;
-      const isStillPending = isHeroTurn && nextActionRequestId !== null && current === nextActionRequestId;
+      const isConfirmed = Boolean(
+        user?.id &&
+        current !== null &&
+        table?.events?.some(event => (
+          event.type === 'player_action' &&
+          event.playerId === user.id &&
+          event.actionRequestId === current
+        ))
+      );
+      const isStillPending = !isConfirmed && isHeroTurn && nextActionRequestId !== null && current === nextActionRequestId;
       if (!isStillPending && current !== null) {
         clearPendingActionTimeout();
       }
       return isStillPending ? current : null;
     });
-  }, [clearPendingActionTimeout, isHeroTurn, table?.actionRequestId]);
+  }, [clearPendingActionTimeout, isHeroTurn, table?.actionRequestId, table?.events, user?.id]);
 
   useEffect(() => {
     if (canAttemptAction) {
@@ -674,13 +752,14 @@ export default function Game() {
     }
 
     let mounted = true;
+    let disposed = false;
     let stateTimeout: number | undefined;
 
     const setup = async () => {
       tableReceivedRef.current = false;
       setFeedback('Connexion à la table...');
 
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getValidSession();
       if (!mounted) return undefined;
       if (!session?.access_token) {
         navigate('/login');
@@ -724,15 +803,20 @@ export default function Game() {
 
     let cleanupWatch: (() => void) | undefined;
     void setup().then(cleanup => {
+      if (disposed) {
+        cleanup?.();
+        return;
+      }
       cleanupWatch = cleanup;
     });
 
     return () => {
       mounted = false;
+      disposed = true;
       cleanupWatch?.();
       if (stateTimeout) window.clearTimeout(stateTimeout);
     };
-  }, [authLoading, navigate, numericTableId, user]);
+  }, [authLoading, getValidSession, navigate, numericTableId, user]);
 
   useEffect(() => {
     if (!user || !Number.isFinite(numericTableId) || !heroAbsent || heroEliminated || heroWonTournament) return;
@@ -786,7 +870,14 @@ export default function Game() {
       action,
       playerId: user.id,
     };
-    const latestTable = tableRef.current;
+    const latestTable = getCachedTableState(numericTableId) ?? tableRef.current;
+    const latestHeroSeat = latestTable?.players.findIndex(player => player?.id === user.id) ?? -1;
+    if (!latestTable || latestHeroSeat < 0 || latestTable.playerToPlay !== latestHeroSeat) {
+      setFeedback("Ce n'est plus à toi de jouer.");
+      requestTableStateSnapshot(numericTableId);
+      return;
+    }
+
     const currentActionRequestId = typeof latestTable?.actionRequestId === 'number' ? latestTable.actionRequestId : null;
     const currentTurnId = typeof latestTable?.turnId === 'number' ? latestTable.turnId : null;
     if (currentTurnId !== null) payload.turnId = currentTurnId;
@@ -830,18 +921,36 @@ export default function Game() {
     }
 
     if (currentActionRequestId !== null) {
+      window.setTimeout(() => {
+        const latestTable = getCachedTableState(numericTableId) ?? tableRef.current;
+        const latestHeroSeat = latestTable?.players.findIndex(player => player?.id === user.id) ?? -1;
+        const stillWaitingForSamePrompt = (
+          latestTable?.actionRequestId === currentActionRequestId &&
+          latestTable.playerToPlay === latestHeroSeat
+        );
+
+        if (stillWaitingForSamePrompt) {
+          requestTableStateSnapshot(numericTableId, true);
+        }
+      }, 1200);
+
       pendingActionTimeoutRef.current = window.setTimeout(() => {
         pendingActionTimeoutRef.current = null;
         void refreshTableStateConnection(numericTableId, true);
 
-        const latestTable = tableRef.current;
+        const latestTable = getCachedTableState(numericTableId) ?? tableRef.current;
         const latestHeroSeat = latestTable?.players.findIndex(player => player?.id === user.id) ?? -1;
+        const actionConfirmed = latestTable?.events?.some(event => (
+          event.type === 'player_action' &&
+          event.playerId === user.id &&
+          event.actionRequestId === currentActionRequestId
+        ));
         if (
+          !actionConfirmed &&
           latestTable?.actionRequestId === currentActionRequestId &&
           latestTable.playerToPlay === latestHeroSeat
         ) {
-          setSubmittedActionRequestId(null);
-          setFeedback('Confirmation non reçue, tu peux réessayer.');
+          setFeedback('Synchronisation de la table...');
         }
       }, ACTION_CONFIRMATION_GRACE_MS);
     }
@@ -915,7 +1024,7 @@ export default function Game() {
 
   const quitEliminatedTournament = () => {
     if (user && Number.isFinite(numericTableId)) {
-      dismissEliminatedTable(user.id, numericTableId);
+      dismissEliminatedTable(user.id, numericTableId, resolvedTournamentId);
     }
 
     setHeroEliminated(false);
@@ -1065,7 +1174,7 @@ export default function Game() {
           <div className={`${styles.dealer} ${styles.heroDealer}`}>D</div>
         )}
 
-        {(heroEliminated || heroWonTournament) && (
+        {showTournamentResultNotice && (
           <div className={`${styles.eliminationNotice} ${heroWonTournament ? styles.victoryNotice : ''}`}>
             <strong>{heroWonTournament ? 'Victoire' : 'Éliminé'}</strong>
             <span>

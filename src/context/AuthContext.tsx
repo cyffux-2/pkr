@@ -1,6 +1,6 @@
-import { createContext, useCallback, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useRef, useState, useEffect, type ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { PKR_AUTH_STORAGE_KEY, supabase } from '../lib/supabase';
 
 export interface UserProfile {
   user_id: string;
@@ -16,6 +16,8 @@ interface AuthContextType {
   loading: boolean;
   profile: UserProfile | null;
   profileLoading: boolean;
+  getValidSession: () => Promise<Session | null>;
+  syncAuthSession: (nextSession?: Session | null) => Promise<Session | null>;
   refreshProfile: () => Promise<UserProfile | null>;
   updateCachedProfile: (updates: Partial<UserProfile>) => void;
   logout: () => Promise<void>;
@@ -53,28 +55,95 @@ function writeCachedProfile(profile: UserProfile | null, userId: string) {
   }
 }
 
+function writeStoredSession(nextSession: Session | null) {
+  try {
+    if (nextSession) {
+      window.localStorage.setItem(PKR_AUTH_STORAGE_KEY, JSON.stringify(nextSession));
+    } else {
+      window.localStorage.removeItem(PKR_AUTH_STORAGE_KEY);
+    }
+  } catch {
+    // If localStorage is unavailable, the in-memory auth context still carries the session.
+  }
+}
+
+function readStoredSession() {
+  try {
+    const rawSession = window.localStorage.getItem(PKR_AUTH_STORAGE_KEY);
+    return rawSession ? JSON.parse(rawSession) as Session : null;
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const sessionRef = useRef<Session | null>(null);
   const userId = user?.id ?? null;
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+  const applySession = useCallback((nextSession: Session | null, options?: { allowClear?: boolean }) => {
+    if (!nextSession && options?.allowClear === false && sessionRef.current) {
       setLoading(false);
-    });
+      return;
+    }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
+    sessionRef.current = nextSession;
+    writeStoredSession(nextSession);
+    setSession(nextSession);
+    setUser(nextSession?.user ?? null);
+    setLoading(false);
   }, []);
+
+  const syncAuthSession = useCallback(async (nextSession?: Session | null) => {
+    if (nextSession !== undefined) {
+      applySession(nextSession, { allowClear: false });
+      return nextSession;
+    }
+
+    const storedSession = readStoredSession();
+    if (storedSession?.access_token) {
+      applySession(storedSession, { allowClear: false });
+      return storedSession;
+    }
+
+    const { data: currentData } = await supabase.auth.getSession();
+    applySession(currentData.session, { allowClear: false });
+    return currentData.session;
+  }, [applySession]);
+
+  const getValidSession = useCallback(async () => {
+    const isUsableSession = (candidate: Session | null) => {
+      return Boolean(candidate?.access_token);
+    };
+
+    if (isUsableSession(session)) return session;
+
+    const storedSession = readStoredSession();
+    if (isUsableSession(storedSession)) {
+      applySession(storedSession, { allowClear: false });
+      return storedSession;
+    }
+
+    const { data: currentData } = await supabase.auth.getSession();
+    if (isUsableSession(currentData.session)) return currentData.session;
+
+    return null;
+  }, [applySession, session]);
+
+  useEffect(() => {
+    const storedSession = readStoredSession();
+    if (storedSession?.access_token) {
+      applySession(storedSession, { allowClear: false });
+    } else {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        applySession(session, { allowClear: false });
+      });
+    }
+  }, [applySession]);
 
   const refreshProfile = useCallback(async () => {
     if (!userId) {
@@ -151,11 +220,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [userId]);
 
   const logout = async () => {
+    applySession(null);
     await supabase.auth.signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, profile, profileLoading, refreshProfile, updateCachedProfile, logout }}>
+    <AuthContext.Provider value={{ user, session, loading, profile, profileLoading, getValidSession, syncAuthSession, refreshProfile, updateCachedProfile, logout }}>
       {children}
     </AuthContext.Provider>
   );

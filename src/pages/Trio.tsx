@@ -5,13 +5,17 @@ import LocalTournamentLeaderboard from '../components/LocalTournamentLeaderboard
 import PlayerAvatar from '../components/PlayerAvatar';
 import { TournamentTableTab } from '../components/TournamentTableTab';
 import { useAuth } from '../context/AuthContext';
-import { getPublicUrl } from '../lib/publicUrl';
 import {
   getActiveTablesForUser,
   type ActiveTableEntry,
   watchActiveTablesForUser,
 } from '../lib/activeTablesRegistry';
-import { watchDismissedEliminatedTables } from '../lib/eliminatedTournamentDismissals';
+import { getPublicUrl } from '../lib/publicUrl';
+import {
+  isDismissedElimination,
+  watchDismissedEliminatedTables,
+  type DismissedEliminationKey,
+} from '../lib/eliminatedTournamentDismissals';
 import { supabase } from '../lib/supabase';
 import { ensureTableStateCache } from '../lib/tableStateCache';
 import { ensureTournamentTableConnection, getCachedTournamentTable } from '../lib/tournamentConnections';
@@ -37,11 +41,11 @@ const GAME_MODES = [
 
 export default function Trio() {
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user, profile, getValidSession } = useAuth();
   const [openProfile, setOpenProfile] = useState(false);
   const [activeTournaments, setActiveTournaments] = useState<ActiveTournament[]>([]);
   const [cachedActiveTables, setCachedActiveTables] = useState<ActiveTableEntry[]>([]);
-  const [dismissedEliminations, setDismissedEliminations] = useState<Set<number>>(new Set());
+  const [dismissedEliminations, setDismissedEliminations] = useState<Set<DismissedEliminationKey>>(new Set());
   const [assignedTableIds, setAssignedTableIds] = useState<Record<number, number>>({});
   const [selectedTableTournamentId, setSelectedTableTournamentId] = useState<number | null>(null);
   const [selectedChoice, setSelectedChoice] = useState<TrioChoice | null>(null);
@@ -98,7 +102,7 @@ export default function Trio() {
       if (!user) return false;
 
       const tableId = tournament.tableId ?? assignedTableIds[tournament.id] ?? getCachedTournamentTable(tournament.id, user.id);
-      return !tableId || !dismissedEliminations.has(tableId);
+      return !isDismissedElimination(dismissedEliminations, tableId, tournament.id);
     }),
     [activeTournaments, assignedTableIds, cachedActiveTables, dismissedEliminations, user],
   );
@@ -107,7 +111,7 @@ export default function Trio() {
     if (!user || visibleActiveTournaments.length === 0) return;
 
     const setup = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getValidSession();
       if (!session?.access_token) return;
 
       for (const tournament of visibleActiveTournaments) {
@@ -129,7 +133,7 @@ export default function Trio() {
     };
 
     setup();
-  }, [visibleActiveTournaments, user]);
+  }, [getValidSession, visibleActiveTournaments, user]);
 
   const openTournamentTable = async (tournament: ActiveTournament) => {
     if (!user) {
@@ -142,7 +146,7 @@ export default function Trio() {
       setSelectedTableTournamentId(current => current === tournament.id ? null : current);
     }, 450);
 
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getValidSession();
     if (!session?.access_token) {
       navigate('/login');
       return;
@@ -180,7 +184,7 @@ export default function Trio() {
     setFeedback(choice === 'normal' ? 'Recherche d’un Triple Normal...' : 'Recherche d’un Triple Turbo...');
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getValidSession();
       if (!session?.access_token) {
         navigate('/login');
         return;

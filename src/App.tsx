@@ -57,15 +57,13 @@ function PageTitle() {
 }
 
 function AppRoutes() {
-  const basename = process.env.PUBLIC_URL || '/';
-
   return (
-    <BrowserRouter basename={basename}>
+    <BrowserRouter>
       <PageTitle />
       <TableTurnAutoSwitcher />
       <Routes>
         {/* Pages sans Navbar */}
-        <Route path="/"               element={<Navigate to="/login" replace />} />
+        <Route path="/"               element={<Login />} />
         <Route path="/home"           element={<Home />} />
         <Route path="/settings"       element={<Settings />} />
         <Route path="/login"          element={<Login />} />

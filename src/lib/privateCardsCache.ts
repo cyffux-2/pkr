@@ -20,12 +20,16 @@ type PrivateCardsEntry = {
   turnId: number | null;
   latestState?: TableState | null;
   lastRequestKey?: string;
+  lastUrgentRequestAt?: number;
+  urgentRequestRetryTimeout?: number;
   listeners: Set<(cards: WireCard[]) => void>;
 };
 
 const privateCardsCache = new Map<string, PrivateCardsEntry>();
 const PRIVATE_CARD_RECONNECT_MS = 1000;
-const PRIVATE_CARD_REQUEST_RETRY_MS = 900;
+const PRIVATE_CARD_REQUEST_RETRY_MS = 250;
+const PRIVATE_CARD_URGENT_REQUEST_RETRY_MS = 120;
+const PRIVATE_CARD_URGENT_REQUEST_THROTTLE_MS = 100;
 const PRIVATE_CARD_SUBSCRIBE_TIMEOUT_MS = 5000;
 
 function cacheKey(tableId: number, userId: string) {
@@ -65,10 +69,18 @@ function clearRequestRetry(entry: PrivateCardsEntry) {
   entry.requestRetryTimeout = undefined;
 }
 
+function clearUrgentRequestRetry(entry: PrivateCardsEntry) {
+  if (!entry.urgentRequestRetryTimeout) return;
+
+  window.clearTimeout(entry.urgentRequestRetryTimeout);
+  entry.urgentRequestRetryTimeout = undefined;
+}
+
 function setCards(entry: PrivateCardsEntry, cards: WireCard[]) {
   entry.cards = cards.slice(0, 2);
   if (hasBothCards(entry)) {
     clearRequestRetry(entry);
+    clearUrgentRequestRetry(entry);
   }
   notify(entry);
 }
@@ -118,6 +130,40 @@ function getHeroState(entry: PrivateCardsEntry) {
   return { seatIndex, player };
 }
 
+function isHeroTurnWithoutCards(entry: PrivateCardsEntry) {
+  const { seatIndex, player } = getHeroState(entry);
+  return Boolean(
+    entry.latestState &&
+    seatIndex >= 0 &&
+    entry.latestState.playerToPlay === seatIndex &&
+    player?.has_cards &&
+    !hasBothCards(entry)
+  );
+}
+
+function stateExplicitlyEndsHeroHand(entry: PrivateCardsEntry, state: TableState | null | undefined) {
+  if (!state) return false;
+
+  const relevantEvents = [
+    ...(state.events ?? []),
+    ...(state.lastEvent ? [state.lastEvent] : []),
+  ];
+
+  return relevantEvents.some(event => {
+    if (event.turnId !== undefined && entry.turnId !== null && event.turnId !== entry.turnId) {
+      return false;
+    }
+
+    if (event.type === 'player_action') {
+      return event.playerId === entry.userId && event.action === 'FOLD';
+    }
+    if (event.type === 'player_eliminated' || event.type === 'player_left') {
+      return event.playerId === entry.userId;
+    }
+    return event.type === 'hand_cleanup' || event.type === 'hand_end' || event.type === 'table_ended';
+  });
+}
+
 function scheduleRequestRetry(entry: PrivateCardsEntry) {
   if (entry.requestRetryTimeout) return;
 
@@ -133,44 +179,74 @@ function scheduleRequestRetry(entry: PrivateCardsEntry) {
   }, PRIVATE_CARD_REQUEST_RETRY_MS);
 }
 
-function requestMissingCards(entry: PrivateCardsEntry) {
+function scheduleUrgentRequestRetry(entry: PrivateCardsEntry) {
+  if (entry.urgentRequestRetryTimeout) return;
+
+  entry.urgentRequestRetryTimeout = window.setTimeout(() => {
+    entry.urgentRequestRetryTimeout = undefined;
+    if (privateCardsCache.get(cacheKey(entry.tableId, entry.userId)) !== entry) return;
+    if (!isHeroTurnWithoutCards(entry)) return;
+
+    requestMissingCards(entry, true);
+  }, PRIVATE_CARD_URGENT_REQUEST_RETRY_MS);
+}
+
+function requestMissingCards(entry: PrivateCardsEntry, urgent = false) {
   if (!entry.latestState) return;
 
   const { player } = getHeroState(entry);
   if (!player?.has_cards || hasBothCards(entry)) {
     clearRequestRetry(entry);
+    clearUrgentRequestRetry(entry);
     return;
   }
 
   if (!entry.ready || !isJoinedChannel(entry.channel)) {
     void ensurePrivateCardsChannel(entry.tableId, entry.userId).finally(() => {
       if (!hasBothCards(entry)) {
-        scheduleRequestRetry(entry);
+        urgent ? scheduleUrgentRequestRetry(entry) : scheduleRequestRetry(entry);
       }
     });
     return;
   }
 
   const turnId = typeof entry.latestState.turnId === 'number' ? entry.latestState.turnId : null;
-  const requestKey = `${entry.tableId}:${entry.userId}:${turnId ?? 'pending'}`;
-  if (entry.lastRequestKey === requestKey) return;
 
-  entry.lastRequestKey = requestKey;
+  if (urgent) {
+    const now = Date.now();
+    if (now - (entry.lastUrgentRequestAt ?? 0) < PRIVATE_CARD_URGENT_REQUEST_THROTTLE_MS) {
+      scheduleUrgentRequestRetry(entry);
+      return;
+    }
+    entry.lastUrgentRequestAt = now;
+  } else {
+    const requestKey = `${entry.tableId}:${entry.userId}:${turnId ?? 'pending'}`;
+    if (entry.lastRequestKey === requestKey) return;
+    entry.lastRequestKey = requestKey;
+  }
+
   void requestTablePrivateCards(entry.tableId, entry.userId, turnId)
     .then(status => {
-      if (status !== 'ok') {
+      if (status !== 'ok' && !urgent) {
         entry.lastRequestKey = undefined;
       }
     })
     .catch(() => {
-      entry.lastRequestKey = undefined;
+      if (!urgent) {
+        entry.lastRequestKey = undefined;
+      }
     })
     .finally(() => {
       const { player: latestPlayer } = getHeroState(entry);
       if (latestPlayer?.has_cards && !hasBothCards(entry)) {
-        scheduleRequestRetry(entry);
+        if (urgent && isHeroTurnWithoutCards(entry)) {
+          scheduleUrgentRequestRetry(entry);
+        } else {
+          scheduleRequestRetry(entry);
+        }
       } else {
         clearRequestRetry(entry);
+        clearUrgentRequestRetry(entry);
       }
     });
 }
@@ -195,6 +271,7 @@ export function closePrivateCardsForUser(userId: string) {
       window.clearTimeout(entry.reconnectTimeout);
     }
     clearRequestRetry(entry);
+    clearUrgentRequestRetry(entry);
     void removePrivateCardsChannel(entry, entry.channel);
     privateCardsCache.delete(key);
   });
@@ -218,7 +295,9 @@ export function syncPrivateCardsWithTableState(tableId: number, userId: string, 
   if (entry.turnId !== nextTurnId) {
     entry.turnId = nextTurnId;
     entry.lastRequestKey = undefined;
+    entry.lastUrgentRequestAt = undefined;
     clearRequestRetry(entry);
+    clearUrgentRequestRetry(entry);
     if (entry.cards.length > 0) setCards(entry, []);
   }
 
@@ -226,12 +305,15 @@ export function syncPrivateCardsWithTableState(tableId: number, userId: string, 
   if (!player?.has_cards) {
     entry.lastRequestKey = undefined;
     clearRequestRetry(entry);
-    if (entry.cards.length > 0) setCards(entry, []);
+    clearUrgentRequestRetry(entry);
+    if (entry.cards.length > 0 && stateExplicitlyEndsHeroHand(entry, state)) {
+      setCards(entry, []);
+    }
     return;
   }
 
   void ensurePrivateCardsChannel(tableId, userId);
-  requestMissingCards(entry);
+  requestMissingCards(entry, isHeroTurnWithoutCards(entry));
 }
 
 export async function ensurePrivateCardsChannel(tableId: number, userId: string) {
@@ -291,7 +373,7 @@ export async function ensurePrivateCardsChannel(tableId: number, userId: string)
         .subscribe(status => {
           if (status === 'SUBSCRIBED') {
             entry.ready = true;
-            requestMissingCards(entry);
+            requestMissingCards(entry, isHeroTurnWithoutCards(entry));
             settle();
             return;
           }
@@ -319,9 +401,11 @@ export function refreshPrivateCards(tableId: number, userId: string, state?: Tab
     entry.latestState = state;
   }
   entry.lastRequestKey = undefined;
+  entry.lastUrgentRequestAt = undefined;
   clearRequestRetry(entry);
+  clearUrgentRequestRetry(entry);
 
   void ensurePrivateCardsChannel(tableId, userId).finally(() => {
-    requestMissingCards(entry);
+    requestMissingCards(entry, isHeroTurnWithoutCards(entry));
   });
 }

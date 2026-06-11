@@ -2,7 +2,8 @@ import { type CSSProperties, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { ensureTournamentTableConnection, getCachedTournamentTable } from '../lib/tournamentConnections';
+import { removeActiveTournamentForUser } from '../lib/activeTablesRegistry';
+import { ensureTournamentTableConnection, getCachedTournamentTable, closeTournamentConnection } from '../lib/tournamentConnections';
 import {
   ensureTableStateCache,
   getCachedTableState,
@@ -11,8 +12,12 @@ import {
   watchCachedTableState,
   type TableState,
 } from '../lib/tableStateCache';
-import { refreshPrivateCards } from '../lib/privateCardsCache';
-import { watchDismissedEliminatedTables } from '../lib/eliminatedTournamentDismissals';
+import { clearCachedPrivateCards, refreshPrivateCards } from '../lib/privateCardsCache';
+import {
+  isDismissedElimination,
+  watchDismissedEliminatedTables,
+  type DismissedEliminationKey,
+} from '../lib/eliminatedTournamentDismissals';
 import { buildBlindLevels, getLevelIndexFromPublishedBlinds } from '../lib/tournamentLevels';
 import { formatWireCard, isRedWireCard } from '../lib/cardDisplay';
 import { useTablePreview } from '../hooks/useTablePreview';
@@ -56,23 +61,44 @@ function formatClock(ms: number) {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
-function getLevelClock(tournament: TournamentRow | null, now: number) {
+function isWaitingTableStatus(status: TableState['game_status'] | undefined) {
+  return status === 0 || status === '0' || status === 'WAITING';
+}
+
+function getLevelClock(
+  tournament: TournamentRow | null,
+  now: number,
+  registeredPlayers: number,
+  tableStatus?: TableState['game_status'],
+) {
   if (!tournament) {
     return {
       label: '-',
       progress: 0,
+      pending: false,
     };
   }
 
   const startMs = new Date(tournament.start_date).getTime();
   const levelDurationMs = Math.max(tournament.time_per_level, 0.001) * 60_000;
   const beforeStartMs = startMs - now;
+  const isSitAndGo = tournament.max_players < 20;
+  const isWaitingForPlayers = registeredPlayers < tournament.max_players;
+
+  if (isSitAndGo && (isWaitingForPlayers || isWaitingTableStatus(tableStatus))) {
+    return {
+      label: 'Non commencé',
+      progress: 18,
+      pending: true,
+    };
+  }
 
   if (beforeStartMs > 0) {
     const referenceMs = Math.max(beforeStartMs, 90 * 60_000);
     return {
       label: formatClock(beforeStartMs),
       progress: Math.max(18, Math.min(342, 360 - (beforeStartMs / referenceMs) * 360)),
+      pending: false,
     };
   }
 
@@ -82,6 +108,7 @@ function getLevelClock(tournament: TournamentRow | null, now: number) {
   return {
     label: formatClock(remainingMs),
     progress: Math.max(0, Math.min(360, (elapsedInLevelMs / levelDurationMs) * 360)),
+    pending: false,
   };
 }
 
@@ -99,7 +126,7 @@ export default function TournamentLobby() {
   const navigate = useNavigate();
   const location = useLocation();
   const { tournamentId } = useParams();
-  const { user } = useAuth();
+  const { user, getValidSession } = useAuth();
   const numericTournamentId = Number(tournamentId);
   const routeState = location.state as { returnTo?: string } | null;
   const returnTo = routeState?.returnTo === '/trio' || routeState?.returnTo === '/headup' || routeState?.returnTo === '/sng' || routeState?.returnTo === '/tournaments'
@@ -114,9 +141,9 @@ export default function TournamentLobby() {
   const [selectedStatsPlayer, setSelectedStatsPlayer] = useState<PlayerRow | null>(null);
   const [feedback, setFeedback] = useState('');
   const [now, setNow] = useState(Date.now());
-  const [dismissedEliminations, setDismissedEliminations] = useState<Set<number>>(new Set());
+  const [dismissedEliminations, setDismissedEliminations] = useState<Set<DismissedEliminationKey>>(new Set());
   const tablePreview = useTablePreview(tableId, user?.id);
-  const eliminationDismissed = Boolean(tableId && dismissedEliminations.has(tableId));
+  const eliminationDismissed = isDismissedElimination(dismissedEliminations, tableId, numericTournamentId);
 
   const joined = Boolean(user && tournament?.players.includes(user.id));
   const alivePlayerIds = useMemo(() => {
@@ -158,7 +185,7 @@ export default function TournamentLobby() {
   );
   const registeredPlayers = tournament?.players.length ?? 0;
   const playersLeft = alivePlayerIds.size > 0 ? alivePlayerIds.size : registeredPlayers;
-  const levelClock = getLevelClock(tournament, now);
+  const levelClock = getLevelClock(tournament, now, registeredPlayers, tableState?.game_status);
   const countdownStyle = {
     '--countdown-progress': `${levelClock.progress}deg`,
   } as CSSProperties;
@@ -247,6 +274,7 @@ export default function TournamentLobby() {
         const { data: leaderboardRows } = await supabase
           .from('profiles')
           .select('user_id, elo')
+          .or('tag.is.null,tag.neq.BOT')
           .order('elo', { ascending: false });
 
         if (!cancelled) {
@@ -281,7 +309,7 @@ export default function TournamentLobby() {
         return;
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getValidSession();
       if (!session?.access_token) return;
 
       const assigned = await ensureTournamentTableConnection({
@@ -300,7 +328,7 @@ export default function TournamentLobby() {
     };
 
     setup();
-  }, [joined, tournament, user]);
+  }, [getValidSession, joined, tournament, user]);
 
   useEffect(() => {
     if (!tableId) return;
@@ -327,7 +355,7 @@ export default function TournamentLobby() {
     }
 
     setFeedback('Connexion à ta table...');
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getValidSession();
     if (!session?.access_token) {
       navigate('/login');
       return;
@@ -357,7 +385,7 @@ export default function TournamentLobby() {
       return;
     }
 
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getValidSession();
     if (!session?.access_token) {
       navigate('/login');
       return;
@@ -379,10 +407,19 @@ export default function TournamentLobby() {
       return;
     }
 
+    const previousTableId = tableId ?? getCachedTournamentTable(tournament.id, user.id);
+    if (previousTableId) {
+      clearCachedPrivateCards(previousTableId, user.id);
+    }
+    removeActiveTournamentForUser(user.id, tournament.id);
+    closeTournamentConnection(tournament.id, user.id);
     setTournament(updatedTournament);
     setTableId(null);
     setTableState(null);
-    setFeedback('Désinscription confirmée.');
+    navigate('/home', {
+      replace: true,
+      state: { notice: 'Désinscription confirmée.' },
+    });
   };
 
   return (
@@ -391,7 +428,9 @@ export default function TournamentLobby() {
         <section className={styles.topPanel}>
           <h1>{tournament?.tournament_name ?? 'Tournoi'}</h1>
           <div className={styles.countdownDial} style={countdownStyle}>
-            <div className={styles.countdownInner}>{levelClock.label}</div>
+            <div className={`${styles.countdownInner} ${levelClock.pending ? styles.countdownInnerPending : ''}`}>
+              {levelClock.label}
+            </div>
           </div>
           <p>{playersLeft}/{registeredPlayers}</p>
         </section>

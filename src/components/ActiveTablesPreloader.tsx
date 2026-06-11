@@ -20,7 +20,11 @@ import {
   clearActiveTablesForUser,
   setActiveTablesForUser,
 } from '../lib/activeTablesRegistry';
-import { watchDismissedEliminatedTables } from '../lib/eliminatedTournamentDismissals';
+import {
+  isDismissedElimination,
+  watchDismissedEliminatedTables,
+  type DismissedEliminationKey,
+} from '../lib/eliminatedTournamentDismissals';
 
 type ActiveTournamentRow = {
   id: number;
@@ -29,6 +33,9 @@ type ActiveTournamentRow = {
   max_players: number;
   players: string[];
 };
+
+const ACTIVE_TOURNAMENT_REFRESH_MS = 15000;
+const ACTIVE_TOURNAMENT_EVENT_DEBOUNCE_MS = 500;
 
 function tournamentFingerprint(tournament: ActiveTournamentRow) {
   return [
@@ -61,7 +68,7 @@ export function ActiveTablesPreloader() {
   const [activeTournaments, setActiveTournaments] = useState<ActiveTournamentRow[]>([]);
   const [knownTournamentsById, setKnownTournamentsById] = useState<Record<number, ActiveTournamentRow>>({});
   const [tableIdsByTournament, setTableIdsByTournament] = useState<Record<number, number>>({});
-  const [dismissedEliminations, setDismissedEliminations] = useState<Set<number>>(new Set());
+  const [dismissedEliminations, setDismissedEliminations] = useState<Set<DismissedEliminationKey>>(new Set());
 
   const registeredTournamentIds = useMemo(
     () => activeTournaments.map(tournament => tournament.id).sort((left, right) => left - right),
@@ -73,15 +80,19 @@ export function ActiveTablesPreloader() {
         if (!userId) return false;
 
         const tableId = tableIdsByTournament[tournament.id] ?? getCachedTournamentTable(tournament.id, userId);
-        return !tableId || !dismissedEliminations.has(tableId);
+        return !tableId || !isDismissedElimination(dismissedEliminations, tableId, tournament.id);
       })
       .map(tournament => tournament.id)
       .sort((left, right) => left - right),
     [activeTournaments, dismissedEliminations, tableIdsByTournament, userId],
   );
   const tableIds = useMemo(
-    () => Array.from(new Set(Object.values(tableIdsByTournament)))
-      .filter((tableId): tableId is number => Number.isFinite(tableId) && !dismissedEliminations.has(tableId)),
+    () => Array.from(new Set(
+      Object.entries(tableIdsByTournament)
+        .filter(([rawTournamentId, tableId]) => !isDismissedElimination(dismissedEliminations, tableId, Number(rawTournamentId)))
+        .map(([, tableId]) => tableId),
+    ))
+      .filter((tableId): tableId is number => Number.isFinite(tableId)),
     [dismissedEliminations, tableIdsByTournament],
   );
 
@@ -94,6 +105,7 @@ export function ActiveTablesPreloader() {
     }
 
     let cancelled = false;
+    let eventDebounce: number | undefined;
 
     const fetchActiveTournaments = async () => {
       const { data, error } = await supabase
@@ -123,17 +135,26 @@ export function ActiveTablesPreloader() {
         return changed ? next : current;
       });
     };
+    const scheduleActiveTournamentFetch = () => {
+      if (eventDebounce) {
+        window.clearTimeout(eventDebounce);
+      }
+      eventDebounce = window.setTimeout(() => {
+        eventDebounce = undefined;
+        void fetchActiveTournaments();
+      }, ACTIVE_TOURNAMENT_EVENT_DEBOUNCE_MS);
+    };
 
     void fetchActiveTournaments();
-    const refreshInterval = window.setInterval(fetchActiveTournaments, 5000);
+    const refreshInterval = window.setInterval(fetchActiveTournaments, ACTIVE_TOURNAMENT_REFRESH_MS);
     const channel = supabase
       .channel(`active-tables-preloader-${userId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' }, fetchActiveTournaments)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'poker-tables' }, fetchActiveTournaments)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' }, scheduleActiveTournamentFetch)
       .subscribe();
 
     return () => {
       cancelled = true;
+      if (eventDebounce) window.clearTimeout(eventDebounce);
       window.clearInterval(refreshInterval);
       void supabase.removeChannel(channel);
     };
@@ -154,7 +175,7 @@ export function ActiveTablesPreloader() {
       const next = Object.entries(current).reduce<Record<number, number>>((accumulator, [rawTournamentId, tableId]) => {
         const tournamentId = Number(rawTournamentId);
         const cachedState = getCachedTableState(tableId);
-        const keepKnownTable = cachedState && isEndedTableStatus(cachedState.game_status) && !dismissedEliminations.has(tableId);
+        const keepKnownTable = cachedState && isEndedTableStatus(cachedState.game_status) && !isDismissedElimination(dismissedEliminations, tableId, tournamentId);
         if (activeIds.has(tournamentId) || keepKnownTable) {
           accumulator[tournamentId] = tableId;
         }
@@ -233,7 +254,7 @@ export function ActiveTablesPreloader() {
     setActiveTablesForUser(
       userId,
       Object.entries(tableIdsByTournament)
-        .filter(([, tableId]) => !dismissedEliminations.has(tableId))
+        .filter(([rawTournamentId, tableId]) => !isDismissedElimination(dismissedEliminations, tableId, Number(rawTournamentId)))
         .map(([rawTournamentId, tableId]) => {
           const tournamentId = Number(rawTournamentId);
           const tournament = knownTournamentsById[tournamentId];

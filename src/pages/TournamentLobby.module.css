@@ -78,6 +78,13 @@
   line-height: 1;
 }
 
+.countdownInnerPending {
+  padding: 0 16px;
+  text-align: center;
+  font-size: clamp(17px, 1.7vw, 25px);
+  line-height: 1.08;
+}
+
 .lobbyPanel {
   min-height: 368px;
   display: grid;

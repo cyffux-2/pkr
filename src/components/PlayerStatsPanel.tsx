@@ -364,6 +364,7 @@ export default function PlayerStatsPanel({ profile, metrics, mode = 'page', onCl
     supabase
       .from('profiles')
       .select('user_id, elo')
+      .or('tag.is.null,tag.neq.BOT')
       .order('elo', { ascending: false })
       .then(({ data, error }) => {
         if (cancelled) return;
@@ -445,6 +446,7 @@ export default function PlayerStatsPanel({ profile, metrics, mode = 'page', onCl
       let request = supabase
         .from('profiles')
         .select('user_id, username, tag, elo, avatar_url')
+        .or('tag.is.null,tag.neq.BOT')
         .order('elo', { ascending: false })
         .limit(8);
 
@@ -474,7 +476,8 @@ export default function PlayerStatsPanel({ profile, metrics, mode = 'page', onCl
     Promise.all([
       supabase
         .from('profiles')
-        .select('user_id, username, elo, avatar_url')
+        .select('user_id, username, elo, avatar_url, tag')
+        .or('tag.is.null,tag.neq.BOT')
         .order('elo', { ascending: false }),
       supabase
         .from('tournament_results')
@@ -496,7 +499,9 @@ export default function PlayerStatsPanel({ profile, metrics, mode = 'page', onCl
         username: string | null;
         elo: number | null;
         avatar_url: string | null;
+        tag?: string | null;
       }>;
+      const humanPlayerIds = new Set(profileRows.map(profileRow => profileRow.user_id));
 
       const ensureEntry = (userId: string, username?: string | null) => {
         const existing = entries.get(userId);
@@ -529,6 +534,7 @@ export default function PlayerStatsPanel({ profile, metrics, mode = 'page', onCl
         getResultPlayers(row.players).forEach((player, index) => {
           const userId = player.playerId ?? player.player_id;
           if (!userId) return;
+          if (!humanPlayerIds.has(userId)) return;
 
           const entry = ensureEntry(userId, player.username);
           const result = { player, index };

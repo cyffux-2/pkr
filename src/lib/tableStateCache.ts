@@ -53,7 +53,7 @@ export type TableEvent = {
 export type TableState = {
   id: number;
   stateRevision?: number;
-  sentAt?: number;
+  tableStep?: number;
   tournamentId?: number;
   turnId?: number;
   actionRequestId?: number;
@@ -83,71 +83,93 @@ export type TableState = {
   events?: TableEvent[];
 };
 
-type ProfileRow = {
-  user_id: string;
-  username: string;
-};
-
 type CacheEntry = {
-  channel?: RealtimeChannel;
-  actionChannel?: RealtimeChannel;
+  stateChannel?: RealtimeChannel;
   inputChannel?: RealtimeChannel;
-  connecting?: Promise<TableState | null>;
-  actionConnecting?: Promise<RealtimeChannel | null>;
+  stateConnecting?: Promise<TableState | null>;
   inputConnecting?: Promise<RealtimeChannel | null>;
-  fallbackInterval?: number;
-  snapshotInterval?: number;
-  visibilityListener?: () => void;
   reconnectTimeout?: number;
+  staleCheckInterval?: number;
+  visibilityListener?: () => void;
   lastStateAt?: number;
   lastSnapshotRequestedAt?: number;
-  notifyTimeout?: number;
-  pendingNotifyState?: TableState;
-  fingerprint?: string;
-  requestSnapshot?: (force?: boolean) => void;
+  latestTableStep?: number;
+  showdownDisplayUntil?: number;
+  showdownHoldTimeout?: number;
+  notifyFrame?: number;
+  notifyQueue: Array<{ state: TableState; fingerprint: string }>;
+  pendingState?: TableState;
+  pendingFingerprint?: string;
   state?: TableState;
+  fingerprint?: string;
   listeners: Set<(state: TableState) => void>;
 };
 
+type TableInputEvent = 'player_action' | 'player_return' | 'private_cards_request' | 'snapshot_request';
+
 const tableCache = new Map<number, CacheEntry>();
-const STALE_STATE_SNAPSHOT_MS = 12000;
-const SNAPSHOT_CHECK_MS = 5000;
-const SNAPSHOT_MIN_INTERVAL_MS = 5000;
-const SNAPSHOT_FORCE_MIN_INTERVAL_MS = 1500;
-const FALLBACK_REFRESH_MS = 5000;
-const RECONNECT_DELAY_MS = 1000;
-const ACTION_CHANNEL_RETRY_DELAY_MS = 180;
 const MAX_CACHED_EVENTS = 80;
-const TABLE_STATE_NOTIFY_THROTTLE_MS = 80;
+const STALE_STATE_SNAPSHOT_MS = 5_000;
+const SNAPSHOT_CHECK_MS = 2_000;
+const SNAPSHOT_MIN_INTERVAL_MS = 1_000;
+const BACKGROUND_SNAPSHOT_MS = 10_000;
+const RECONNECT_DELAY_MS = 800;
+const MAX_NOTIFICATIONS_PER_FRAME = 1;
+const MIN_SHOWDOWN_DISPLAY_MS = 3_000;
 
-function numericValue(value: unknown) {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+function shouldLogTableState() {
+  return (
+    process.env.NODE_ENV !== 'production' ||
+    process.env.REACT_APP_DEBUG_TABLE_STATE === '1' ||
+    window.localStorage.getItem('pkrDebugTableState') === '1'
+  );
 }
 
-export function isFreshTableState(current: TableState | null | undefined, next: TableState) {
-  if (!current) return true;
+function tableStateLog(label: string, state: TableState, extra: Record<string, unknown> = {}) {
+  if (!shouldLogTableState()) return;
 
-  const currentRevision = numericValue(current.stateRevision);
-  const nextRevision = numericValue(next.stateRevision);
-  if (currentRevision !== null || nextRevision !== null) {
-    if (currentRevision === null) return true;
-    if (nextRevision === null) return false;
-    return nextRevision >= currentRevision;
-  }
-
-  const currentSentAt = numericValue(current.sentAt);
-  const nextSentAt = numericValue(next.sentAt);
-  if (currentSentAt !== null || nextSentAt !== null) {
-    if (currentSentAt === null) return true;
-    if (nextSentAt === null) return false;
-    return nextSentAt >= currentSentAt;
-  }
-
-  return true;
+  console.log(`[TableState] ${label}`, {
+    tableId: state.id,
+    tableStep: state.tableStep ?? null,
+    stateRevision: state.stateRevision ?? null,
+    turnId: state.turnId ?? null,
+    actionRequestId: state.actionRequestId ?? null,
+    playerToPlay: state.playerToPlay ?? null,
+    lastEvent: state.lastEvent
+      ? {
+        id: state.lastEvent.id,
+        type: state.lastEvent.type,
+        playerId: state.lastEvent.playerId ?? null,
+        action: state.lastEvent.action ?? null,
+      }
+      : null,
+    boardCount: state.common_cards.length,
+    pot: state.pot,
+    players: state.players.map((player, seatIndex) => player
+      ? {
+        seatIndex,
+        id: player.id,
+        chips: player.chips,
+        bet: player.bet,
+        has_cards: player.has_cards,
+        absent: Boolean(player.absent),
+      }
+      : null
+    ),
+    ...extra,
+  });
 }
 
-function pickFreshestTableState(current: TableState | null, candidate: TableState) {
-  return isFreshTableState(current, candidate) ? candidate : current;
+function getEntry(tableId: number) {
+  const existing = tableCache.get(tableId);
+  if (existing) return existing;
+
+  const entry: CacheEntry = {
+    listeners: new Set(),
+    notifyQueue: [],
+  };
+  tableCache.set(tableId, entry);
+  return entry;
 }
 
 function cardFingerprint(card: WireCard | undefined) {
@@ -155,53 +177,61 @@ function cardFingerprint(card: WireCard | undefined) {
   return `${card._color ?? card.color ?? ''}:${card._value ?? card.value ?? ''}`;
 }
 
-function stateFingerprint(state: TableState) {
-  const eloResults = state.eloResults
-    ? Object.entries(state.eloResults)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([playerId, result]) => [
-        playerId,
-        result.initialElo,
-        result.newElo,
-        result.delta,
-        result.placement,
-        result.chanceMultiplier,
-        result.eloMultiplier ?? '',
-        result.allInEvAdjustment,
-      ])
-    : [];
+function numericValue(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
 
+function stateTableStep(state: TableState | null | undefined) {
+  return numericValue(state?.tableStep);
+}
+
+function isShowdownHoldActive(entry: CacheEntry) {
+  return (entry.showdownDisplayUntil ?? 0) > Date.now();
+}
+
+function isShowdownDisplayState(state: TableState | null | undefined) {
+  return Boolean(
+    state?.showdown ||
+    state?.lastEvent?.type === 'showdown_reveal' ||
+    state?.winningPlayerIds?.length
+  );
+}
+
+function trimEvents(state: TableState): TableState {
+  if (!state.events || state.events.length <= MAX_CACHED_EVENTS) return state;
+  return {
+    ...state,
+    events: state.events.slice(-MAX_CACHED_EVENTS),
+  };
+}
+
+function stateFingerprint(state: TableState) {
   return JSON.stringify({
-    tournamentId: state.tournamentId ?? null,
+    stateRevision: state.stateRevision ?? null,
+    tableStep: state.tableStep ?? null,
     turnId: state.turnId ?? null,
     actionRequestId: state.actionRequestId ?? null,
     actionStartedAt: state.actionStartedAt ?? null,
     actionDeadlineAt: state.actionDeadlineAt ?? null,
-    actionBaseTimeMs: state.actionBaseTimeMs ?? null,
-    actionTimebankMs: state.actionTimebankMs ?? null,
-    timebankRemainingMs: state.timebankRemainingMs ?? {},
-    timebankMaxMs: state.timebankMaxMs ?? null,
-    timebankRefillIntervalMs: state.timebankRefillIntervalMs ?? null,
-    nextTimebankRefillAt: state.nextTimebankRefillAt ?? null,
     playerToPlay: state.playerToPlay,
     button: state.button,
     BB: state.BB,
     SB: state.SB,
-    gameStatus: state.game_status,
+    status: state.game_status,
     showdown: Boolean(state.showdown),
+    lastEventId: state.lastEvent?.id ?? null,
+    eventIds: state.events?.slice(-MAX_CACHED_EVENTS).map(event => event.id) ?? [],
+    commonCards: state.common_cards.map(cardFingerprint),
+    pot: state.pot,
     absentPlayerIds: state.absentPlayerIds ?? [],
-    winners: state.winningPlayerIds ?? [],
+    winningPlayerIds: state.winningPlayerIds ?? [],
+    tournamentWinnerIds: state.tournamentWinnerIds ?? [],
     winningCardsByPlayerId: Object.fromEntries(
       Object.entries(state.winningCardsByPlayerId ?? {})
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([playerId, cards]) => [playerId, cards.map(cardFingerprint)])
     ),
-    tournamentWinners: state.tournamentWinnerIds ?? [],
-    eloResults,
-    lastEventId: state.lastEvent?.id ?? null,
-    eventIds: state.events?.slice(-MAX_CACHED_EVENTS).map(event => event.id) ?? [],
-    commonCards: state.common_cards.map(cardFingerprint),
-    pot: state.pot,
+    eloResults: Object.entries(state.eloResults ?? {}).sort(([left], [right]) => left.localeCompare(right)),
     players: state.players.map(player => player
       ? [
         player.id ?? '',
@@ -217,174 +247,227 @@ function stateFingerprint(state: TableState) {
   });
 }
 
-function trimTableStateEvents(state: TableState) {
-  if (!state.events || state.events.length <= MAX_CACHED_EVENTS) return state;
-
-  return {
-    ...state,
-    events: state.events.slice(-MAX_CACHED_EVENTS),
-  };
-}
-
-function scheduleStateListeners(entry: CacheEntry, state: TableState) {
-  entry.pendingNotifyState = state;
-  if (entry.notifyTimeout) return;
-
-  entry.notifyTimeout = window.setTimeout(() => {
-    entry.notifyTimeout = undefined;
-    const latestState = entry.pendingNotifyState;
-    entry.pendingNotifyState = undefined;
-
-    if (!latestState) return;
-    entry.listeners.forEach(listener => listener(latestState));
-  }, TABLE_STATE_NOTIFY_THROTTLE_MS);
-}
-
 function extractTableStatePayload(payload: unknown): TableState | null {
   if (!payload || typeof payload !== 'object') return null;
-
-  const maybeWrapped = payload as { state?: unknown };
-  const candidate = maybeWrapped.state ?? payload;
+  const wrapped = payload as { state?: unknown };
+  const candidate = wrapped.state ?? payload;
   if (!candidate || typeof candidate !== 'object') return null;
 
-  const next = candidate as TableState;
-  if (typeof next.id === 'number' && Array.isArray(next.players)) {
-    return next;
-  }
-
-  return null;
+  const state = candidate as TableState;
+  return typeof state.id === 'number' && Array.isArray(state.players) ? state : null;
 }
 
-function extractLatestTableState(rawState: unknown): TableState | null {
-  if (!rawState || typeof rawState !== 'object') return null;
+function notify(entry: CacheEntry, state: TableState) {
+  if (isShowdownDisplayState(state)) {
+    entry.showdownDisplayUntil = Math.max(
+      entry.showdownDisplayUntil ?? 0,
+      Date.now() + MIN_SHOWDOWN_DISPLAY_MS
+    );
+  }
+  tableStateLog('displayed', state, {
+    listeners: entry.listeners.size,
+    showdownDisplayUntil: entry.showdownDisplayUntil ?? null,
+  });
+  entry.listeners.forEach(listener => listener(state));
+}
 
-  const state = rawState as Record<string, Array<{ payload?: unknown }>>;
-  let latest: TableState | null = null;
+function flushNotifyQueue(entry: CacheEntry) {
+  entry.notifyFrame = undefined;
 
-  for (const presences of Object.values(state)) {
-    if (!Array.isArray(presences)) continue;
-    for (const presence of presences) {
-      const payload = extractTableStatePayload(presence?.payload);
-      if (payload) {
-        latest = pickFreshestTableState(latest, payload);
+  let flushed = 0;
+
+  while (entry.notifyQueue.length > 0) {
+    const holdRemainingMs = (entry.showdownDisplayUntil ?? 0) - Date.now();
+    if (holdRemainingMs > 0 && !isShowdownDisplayState(entry.notifyQueue[0]?.state)) {
+      tableStateLog('holding after showdown', entry.state ?? entry.notifyQueue[0].state, {
+        holdRemainingMs,
+        queuedStates: entry.notifyQueue.length,
+      });
+      if (!entry.showdownHoldTimeout) {
+        entry.showdownHoldTimeout = window.setTimeout(() => {
+          entry.showdownHoldTimeout = undefined;
+          if (!entry.notifyFrame) {
+            entry.notifyFrame = window.requestAnimationFrame(() => flushNotifyQueue(entry));
+          }
+        }, Math.min(holdRemainingMs, MIN_SHOWDOWN_DISPLAY_MS));
       }
+      return;
+    }
+
+    if (entry.showdownHoldTimeout) {
+      window.clearTimeout(entry.showdownHoldTimeout);
+      entry.showdownHoldTimeout = undefined;
+    }
+
+    if (!isShowdownHoldActive(entry)) {
+      entry.showdownDisplayUntil = undefined;
+    }
+
+    const item = entry.notifyQueue.shift();
+    if (!item) break;
+
+    const itemTableStep = stateTableStep(item.state);
+    if (
+      itemTableStep !== null &&
+      entry.latestTableStep !== undefined &&
+      itemTableStep < entry.latestTableStep &&
+      !isShowdownDisplayState(item.state)
+    ) {
+      tableStateLog('skipped queued stale', item.state, {
+        latestTableStep: entry.latestTableStep,
+      });
+      continue;
+    }
+
+    notify(entry, item.state);
+    entry.state = item.state;
+    entry.fingerprint = item.fingerprint;
+    if (entry.pendingFingerprint === item.fingerprint) {
+      entry.pendingState = undefined;
+      entry.pendingFingerprint = undefined;
+    }
+    flushed++;
+
+    if (flushed >= MAX_NOTIFICATIONS_PER_FRAME) {
+      break;
     }
   }
 
-  return latest;
+  if (entry.notifyQueue.length > 0) {
+    entry.notifyFrame = window.requestAnimationFrame(() => flushNotifyQueue(entry));
+  }
 }
 
-function getEntry(tableId: number) {
-  const existing = tableCache.get(tableId);
-  if (existing) return existing;
+function enqueueNotification(entry: CacheEntry, state: TableState, fingerprint: string) {
+  entry.notifyQueue.push({ state, fingerprint });
+  if (!entry.notifyFrame) {
+    entry.notifyFrame = window.requestAnimationFrame(() => flushNotifyQueue(entry));
+  }
+}
 
-  const entry: CacheEntry = {
-    listeners: new Set(),
-  };
-  tableCache.set(tableId, entry);
-  return entry;
+export function setCachedTableState(state: TableState) {
+  const entry = getEntry(state.id);
+  const nextState = trimEvents(state);
+  const tableStep = stateTableStep(nextState);
+
+  if (tableStep !== null && entry.latestTableStep !== undefined && tableStep < entry.latestTableStep) {
+    entry.lastStateAt = Date.now();
+    tableStateLog('ignored stale', nextState, {
+      latestTableStep: entry.latestTableStep,
+    });
+    return false;
+  }
+
+  const fingerprint = stateFingerprint(nextState);
+
+  if (entry.fingerprint === fingerprint || entry.pendingFingerprint === fingerprint) {
+    entry.lastStateAt = Date.now();
+    tableStateLog('ignored duplicate', nextState, {
+      latestTableStep: entry.latestTableStep ?? null,
+      pending: entry.pendingFingerprint === fingerprint,
+    });
+    return false;
+  }
+
+  entry.lastStateAt = Date.now();
+  if (tableStep !== null) {
+    entry.latestTableStep = Math.max(entry.latestTableStep ?? 0, tableStep);
+    entry.notifyQueue = entry.notifyQueue.filter(item => {
+      const itemTableStep = stateTableStep(item.state);
+      const keep = isShowdownDisplayState(item.state) || itemTableStep === null || itemTableStep >= entry.latestTableStep!;
+      if (!keep) {
+        tableStateLog('dropped queued older state', item.state, {
+          latestTableStep: entry.latestTableStep,
+        });
+      }
+      return keep;
+    });
+  }
+  entry.pendingState = nextState;
+  entry.pendingFingerprint = fingerprint;
+  tableStateLog('accepted', nextState, {
+    latestTableStep: entry.latestTableStep ?? null,
+    queuedStates: entry.notifyQueue.length,
+  });
+  enqueueNotification(entry, nextState, fingerprint);
+  return true;
 }
 
 export function getCachedTableState(tableId: number) {
   return tableCache.get(tableId)?.state ?? null;
 }
 
-export function setCachedTableState(state: TableState) {
-  const nextState = trimTableStateEvents(state);
-  const entry = getEntry(state.id);
-
-  if (!isFreshTableState(entry.state, nextState)) {
-    return false;
-  }
-
-  entry.lastStateAt = Date.now();
-
-  const fingerprint = stateFingerprint(nextState);
-  if (entry.fingerprint === fingerprint) {
-    entry.state = nextState;
-    return false;
-  }
-
-  entry.fingerprint = fingerprint;
-  entry.state = nextState;
-  scheduleStateListeners(entry, nextState);
-  return true;
-}
-
 export function watchCachedTableState(tableId: number, listener: (state: TableState) => void) {
   const entry = getEntry(tableId);
   entry.listeners.add(listener);
-  if (entry.state) listener(entry.state);
+  const visibleState = isShowdownHoldActive(entry)
+    ? entry.state
+    : entry.pendingState ?? entry.state;
+  if (visibleState) listener(visibleState);
 
   return () => {
     entry.listeners.delete(listener);
   };
 }
 
-async function resetTableChannel(tableId: number, channel: RealtimeChannel) {
-  const entry = getEntry(tableId);
-  if (entry.channel !== channel) return;
-
-  entry.channel = undefined;
-  if (entry.snapshotInterval) {
-    window.clearInterval(entry.snapshotInterval);
-    entry.snapshotInterval = undefined;
-  }
-  if (entry.fallbackInterval) {
-    window.clearInterval(entry.fallbackInterval);
-    entry.fallbackInterval = undefined;
-  }
-  entry.requestSnapshot = undefined;
-  if (entry.visibilityListener) {
-    document.removeEventListener('visibilitychange', entry.visibilityListener);
-    entry.visibilityListener = undefined;
-  }
-
-  channel.unsubscribe();
-  await supabase.removeChannel(channel);
-}
-
-async function resetTableActionChannel(tableId: number, channel: RealtimeChannel) {
-  const entry = getEntry(tableId);
-  if (entry.actionChannel === channel) {
-    entry.actionChannel = undefined;
-  }
-  try {
-    channel.unsubscribe();
-  } catch {
-    // Supabase can emit CLOSED while unsubscribe is already in progress.
-  }
-  try {
-    await supabase.removeChannel(channel);
-  } catch {
-    // Best effort cleanup. The next action will recreate a fresh channel.
-  }
-}
-
-async function resetTableInputChannel(tableId: number, channel: RealtimeChannel) {
-  const entry = getEntry(tableId);
-  if (entry.inputChannel === channel) {
-    entry.inputChannel = undefined;
-  }
-  try {
-    channel.unsubscribe();
-  } catch {
-    // Supabase can emit CLOSED while unsubscribe is already in progress.
-  }
-  try {
-    await realtimeInputSupabase.removeChannel(channel);
-  } catch {
-    // Best effort cleanup. The next input send will recreate a fresh channel.
-  }
-}
-
 function getChannelState(channel: RealtimeChannel | undefined) {
   return (channel as unknown as { state?: string } | undefined)?.state;
 }
 
-function isReusableStateChannel(channel: RealtimeChannel | undefined) {
+function isReusableChannel(channel: RealtimeChannel | undefined) {
   const state = getChannelState(channel);
-  return state === undefined || state === 'joined';
+  return state === undefined || state === 'joining' || state === 'joined';
+}
+
+async function removeChannel(client: typeof supabase | typeof realtimeInputSupabase, channel: RealtimeChannel | undefined) {
+  if (!channel) return;
+  try {
+    await Promise.resolve(channel.unsubscribe());
+  } catch {
+    // Already closed.
+  }
+  try {
+    await client.removeChannel(channel);
+  } catch {
+    // Best effort cleanup.
+  }
+}
+
+async function resetStateChannel(tableId: number, channel: RealtimeChannel | undefined) {
+  const entry = getEntry(tableId);
+  if (entry.stateChannel === channel) {
+    entry.stateChannel = undefined;
+  }
+  if (entry.staleCheckInterval) {
+    window.clearInterval(entry.staleCheckInterval);
+    entry.staleCheckInterval = undefined;
+  }
+  if (entry.visibilityListener) {
+    document.removeEventListener('visibilitychange', entry.visibilityListener);
+    entry.visibilityListener = undefined;
+  }
+  if (entry.notifyFrame) {
+    window.cancelAnimationFrame(entry.notifyFrame);
+    entry.notifyFrame = undefined;
+  }
+  if (entry.showdownHoldTimeout) {
+    window.clearTimeout(entry.showdownHoldTimeout);
+    entry.showdownHoldTimeout = undefined;
+  }
+  entry.notifyQueue = [];
+  entry.pendingState = undefined;
+  entry.pendingFingerprint = undefined;
+  entry.latestTableStep = undefined;
+  entry.showdownDisplayUntil = undefined;
+  await removeChannel(supabase, channel);
+}
+
+async function resetInputChannel(tableId: number, channel: RealtimeChannel | undefined) {
+  const entry = getEntry(tableId);
+  if (entry.inputChannel === channel) {
+    entry.inputChannel = undefined;
+  }
+  await removeChannel(realtimeInputSupabase, channel);
 }
 
 function scheduleReconnect(tableId: number, channel: RealtimeChannel) {
@@ -393,71 +476,178 @@ function scheduleReconnect(tableId: number, channel: RealtimeChannel) {
 
   entry.reconnectTimeout = window.setTimeout(() => {
     entry.reconnectTimeout = undefined;
-    if (entry.channel === channel) {
-      void resetTableChannel(tableId, channel).finally(() => {
+    if (entry.stateChannel === channel) {
+      void resetStateChannel(tableId, channel).finally(() => {
         void ensureTableStateCache(tableId);
       });
-      return;
     }
-    void ensureTableStateCache(tableId);
   }, RECONNECT_DELAY_MS);
 }
 
-async function fetchDbFallback(tableId: number) {
-  const { data: tableRow } = await supabase
-    .from('poker-tables')
-    .select('id, players')
-    .eq('id', tableId)
-    .maybeSingle();
+async function sendOnChannel(channel: RealtimeChannel, event: TableInputEvent, payload: Record<string, unknown>) {
+  try {
+    return await channel.send({
+      type: 'broadcast',
+      event,
+      payload,
+    });
+  } catch {
+    return 'send_error';
+  }
+}
 
-  const rawPlayers = tableRow?.players;
-  const playerIds = Array.isArray(rawPlayers)
-    ? rawPlayers.filter((id): id is string => typeof id === 'string')
-    : [];
-  if (!tableRow?.id || playerIds.length === 0) return null;
+async function sendTableInputBroadcast(tableId: number, event: TableInputEvent, payload: Record<string, unknown>) {
+  const entry = getEntry(tableId);
+  const inputChannel = await ensureTableInputChannel(tableId);
 
-  const { data: profileRows } = await supabase
-    .from('profiles')
-    .select('user_id, username')
-    .in('user_id', playerIds);
-  const profiles = (profileRows ?? []) as ProfileRow[];
+  if (inputChannel) {
+    const status = await sendOnChannel(inputChannel, event, payload);
+    if (status === 'ok') return 'ok';
+    await resetInputChannel(tableId, inputChannel);
+  }
 
-  return {
-    id: tableRow.id,
-    common_cards: [],
-    players: playerIds.map(playerId => {
-      const profile = profiles.find(item => item.user_id === playerId);
-      return {
-        id: playerId,
-        name: profile?.username ?? 'Joueur',
-        has_cards: false,
-        chips: 1000,
-        bet: 0,
-      };
-    }),
-    pot: [],
-    button: 0,
-    playerToPlay: null,
-    BB: 50,
-    SB: 25,
-    game_status: 'PLAYING',
-  } satisfies TableState;
+  if (entry.stateChannel && isReusableChannel(entry.stateChannel)) {
+    const status = await sendOnChannel(entry.stateChannel, event, payload);
+    if (status === 'ok') return 'ok';
+    await resetStateChannel(tableId, entry.stateChannel);
+  }
+
+  return 'channel_unavailable';
+}
+
+function requestSnapshot(tableId: number, force = false) {
+  const entry = getEntry(tableId);
+  const now = Date.now();
+  if (!force && now - (entry.lastSnapshotRequestedAt ?? 0) < SNAPSHOT_MIN_INTERVAL_MS) {
+    return;
+  }
+
+  entry.lastSnapshotRequestedAt = now;
+  void sendTableInputBroadcast(tableId, 'snapshot_request', {
+    requestedAt: now,
+    force,
+  });
+}
+
+export function requestTableStateSnapshot(tableId: number, force = false) {
+  requestSnapshot(tableId, force);
+}
+
+export async function refreshTableStateConnection(tableId: number, force = false) {
+  await ensureTableStateCache(tableId);
+  requestSnapshot(tableId, force);
 }
 
 export async function ensureTableStateCache(tableId: number) {
   const entry = getEntry(tableId);
-  if (entry.connecting) return entry.connecting;
-  if (entry.channel) {
-    if (isReusableStateChannel(entry.channel)) {
-      return entry.state ?? null;
+  if (entry.stateConnecting) return entry.stateConnecting;
+  if (entry.stateChannel && isReusableChannel(entry.stateChannel)) {
+    if (!entry.state || Date.now() - (entry.lastStateAt ?? 0) > SNAPSHOT_CHECK_MS) {
+      requestSnapshot(tableId);
     }
-    await resetTableChannel(tableId, entry.channel);
+    return entry.state ?? null;
+  }
+  if (entry.stateChannel) {
+    await resetStateChannel(tableId, entry.stateChannel);
   }
 
-  entry.connecting = (async () => {
-    if (entry.channel) return entry.state ?? null;
-
+  entry.stateConnecting = (async () => {
     const channel = supabase.channel(`table:${tableId}:spectator`, {
+      config: {
+        broadcast: {
+          ack: false,
+          self: false,
+        },
+      },
+    });
+    entry.stateChannel = channel;
+
+    const applyPayload = (eventName: string, payload: unknown) => {
+      const state = extractTableStatePayload(payload);
+      if (!state) {
+        if (shouldLogTableState()) {
+          console.log(`[TableState] ignored invalid payload`, {
+            tableId,
+            eventName,
+            payload,
+          });
+        }
+        return;
+      }
+
+      tableStateLog('received', state, {
+        eventName,
+        currentLatestTableStep: entry.latestTableStep ?? null,
+      });
+      setCachedTableState(state);
+    };
+
+    channel
+      .on('broadcast', { event: 'table_update' }, ({ payload }) => applyPayload('table_update', payload))
+      .on('broadcast', { event: 'action_prompt' }, ({ payload }) => applyPayload('action_prompt', payload))
+      .on('broadcast', { event: 'state' }, ({ payload }) => applyPayload('state', payload));
+
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const settle = (callback: () => void) => {
+        if (settled) return;
+        settled = true;
+        callback();
+      };
+
+      channel.subscribe((status, error) => {
+        if (status === 'SUBSCRIBED') {
+          settle(resolve);
+          return;
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          scheduleReconnect(tableId, channel);
+          settle(() => reject(error ?? new Error(`Table channel ${tableId} closed with ${status}`)));
+        }
+      });
+    });
+
+    entry.visibilityListener = () => {
+      if (document.visibilityState === 'visible') {
+        requestSnapshot(tableId, true);
+      }
+    };
+    document.addEventListener('visibilitychange', entry.visibilityListener);
+
+    entry.staleCheckInterval = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      const stateAgeMs = now - (entry.lastStateAt ?? 0);
+      const snapshotAgeMs = now - (entry.lastSnapshotRequestedAt ?? 0);
+
+      if (stateAgeMs > STALE_STATE_SNAPSHOT_MS || snapshotAgeMs > BACKGROUND_SNAPSHOT_MS) {
+        requestSnapshot(tableId);
+      }
+    }, SNAPSHOT_CHECK_MS);
+
+    requestSnapshot(tableId, true);
+    return entry.state ?? null;
+  })();
+
+  try {
+    return await entry.stateConnecting;
+  } finally {
+    entry.stateConnecting = undefined;
+  }
+}
+
+async function ensureTableInputChannel(tableId: number) {
+  const entry = getEntry(tableId);
+  if (entry.inputConnecting) return entry.inputConnecting;
+  if (entry.inputChannel && isReusableChannel(entry.inputChannel)) {
+    return entry.inputChannel;
+  }
+  if (entry.inputChannel) {
+    await resetInputChannel(tableId, entry.inputChannel);
+  }
+
+  entry.inputConnecting = (async () => {
+    const channel = realtimeInputSupabase.channel(`table:${tableId}:input`, {
       config: {
         broadcast: {
           ack: true,
@@ -465,236 +655,33 @@ export async function ensureTableStateCache(tableId: number) {
         },
       },
     });
-    entry.channel = channel;
+    entry.inputChannel = channel;
 
-    const applyState = (payload: unknown) => {
-      const next = extractTableStatePayload(payload);
-      if (next) {
-        setCachedTableState(next);
-      }
-    };
+    const subscribed = await new Promise<boolean>(resolve => {
+      let settled = false;
+      const settle = (value: boolean) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
 
-    const requestSnapshot = (force = false) => {
-      const now = Date.now();
-      const minInterval = force ? SNAPSHOT_FORCE_MIN_INTERVAL_MS : SNAPSHOT_MIN_INTERVAL_MS;
-      if (now - (entry.lastSnapshotRequestedAt ?? 0) < minInterval) {
-        return;
-      }
-      entry.lastSnapshotRequestedAt = now;
-      void channel.send({
-        type: 'broadcast',
-        event: 'snapshot_request',
-        payload: {},
-      });
-    };
-    entry.requestSnapshot = requestSnapshot;
-
-    const requestSnapshotIfStale = () => {
-      const latestStateAt = entry.lastStateAt ?? 0;
-      if (Date.now() - latestStateAt >= STALE_STATE_SNAPSHOT_MS) {
-        requestSnapshot();
-      }
-    };
-
-    entry.visibilityListener = () => {
-      if (document.visibilityState === 'visible') {
-        requestSnapshot(true);
-      }
-    };
-    document.addEventListener('visibilitychange', entry.visibilityListener);
-
-    channel
-      .on('broadcast', { event: 'state' }, ({ payload }) => {
-        applyState(payload);
-      })
-      .on('broadcast', { event: 'table_update' }, ({ payload }) => {
-        applyState(payload);
-      })
-      .on('presence', { event: 'sync' }, () => {
-        const latest = extractLatestTableState(channel.presenceState());
-        if (latest) setCachedTableState(latest);
-      })
-      .subscribe(status => {
+      channel.subscribe(status => {
         if (status === 'SUBSCRIBED') {
-          requestSnapshot(true);
+          settle(true);
           return;
         }
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          scheduleReconnect(tableId, channel);
+          settle(false);
         }
       });
+    });
 
-    entry.snapshotInterval = window.setInterval(requestSnapshotIfStale, SNAPSHOT_CHECK_MS);
-
-    const refreshFallback = async () => {
-      const fallbackState = await fetchDbFallback(tableId);
-      if (fallbackState && !getCachedTableState(tableId)) {
-        setCachedTableState(fallbackState);
-      }
-    };
-
-    entry.fallbackInterval = window.setInterval(refreshFallback, FALLBACK_REFRESH_MS);
-    void refreshFallback();
-
-    return entry.state ?? null;
-  })();
-
-  try {
-    return await entry.connecting;
-  } finally {
-    entry.connecting = undefined;
-  }
-}
-
-function sleep(ms: number) {
-  return new Promise(resolve => window.setTimeout(resolve, ms));
-}
-
-function isReusableActionChannel(channel: RealtimeChannel) {
-  const state = (channel as unknown as { state?: string }).state;
-  return state === undefined || state === 'joined';
-}
-
-async function createTableActionChannel(tableId: number) {
-  const entry = getEntry(tableId);
-  if (entry.actionChannel && isReusableActionChannel(entry.actionChannel)) return entry.actionChannel;
-
-  const channel = supabase.channel(`table:${tableId}:actions`, {
-    config: {
-      broadcast: {
-        ack: true,
-        self: false,
-      },
-    },
-  });
-  entry.actionChannel = channel;
-
-  channel.on('broadcast', { event: 'table_update' }, ({ payload }) => {
-    const next = extractTableStatePayload(payload);
-    if (next) {
-      setCachedTableState(next);
+    if (!subscribed) {
+      await resetInputChannel(tableId, channel);
+      return null;
     }
-  });
 
-  const subscribed = await new Promise<boolean>(resolve => {
-    let settled = false;
-    const settle = (value: boolean) => {
-      if (settled) return;
-      settled = true;
-      resolve(value);
-    };
-
-    channel.subscribe(status => {
-      if (status === 'SUBSCRIBED') {
-        settle(true);
-        return;
-      }
-
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-        if (entry.actionChannel === channel) {
-          entry.actionChannel = undefined;
-        }
-
-        if (!settled) {
-          settle(false);
-        }
-      }
-    });
-  });
-
-  if (!subscribed) {
-    await resetTableActionChannel(tableId, channel);
-    return null;
-  }
-
-  return channel;
-}
-
-async function ensureTableActionChannel(tableId: number) {
-  const entry = getEntry(tableId);
-  if (entry.actionChannel) {
-    if (isReusableActionChannel(entry.actionChannel)) return entry.actionChannel;
-    await resetTableActionChannel(tableId, entry.actionChannel);
-  }
-  if (entry.actionConnecting) return entry.actionConnecting;
-
-  entry.actionConnecting = (async () => {
-    const firstAttempt = await createTableActionChannel(tableId);
-    if (firstAttempt) return firstAttempt;
-
-    await sleep(ACTION_CHANNEL_RETRY_DELAY_MS);
-    return createTableActionChannel(tableId);
-  })();
-
-  try {
-    return await entry.actionConnecting;
-  } finally {
-    entry.actionConnecting = undefined;
-  }
-}
-
-async function createTableInputChannel(tableId: number) {
-  const entry = getEntry(tableId);
-  if (entry.inputChannel && isReusableActionChannel(entry.inputChannel)) return entry.inputChannel;
-
-  const channel = realtimeInputSupabase.channel(`table:${tableId}:input`, {
-    config: {
-      broadcast: {
-        ack: true,
-        self: false,
-      },
-    },
-  });
-  entry.inputChannel = channel;
-
-  const subscribed = await new Promise<boolean>(resolve => {
-    let settled = false;
-    const settle = (value: boolean) => {
-      if (settled) return;
-      settled = true;
-      resolve(value);
-    };
-
-    channel.subscribe(status => {
-      if (status === 'SUBSCRIBED') {
-        settle(true);
-        return;
-      }
-
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-        if (entry.inputChannel === channel) {
-          entry.inputChannel = undefined;
-        }
-
-        if (!settled) {
-          settle(false);
-        }
-      }
-    });
-  });
-
-  if (!subscribed) {
-    await resetTableInputChannel(tableId, channel);
-    return null;
-  }
-
-  return channel;
-}
-
-async function ensureTableInputChannel(tableId: number) {
-  const entry = getEntry(tableId);
-  if (entry.inputChannel) {
-    if (isReusableActionChannel(entry.inputChannel)) return entry.inputChannel;
-    await resetTableInputChannel(tableId, entry.inputChannel);
-  }
-  if (entry.inputConnecting) return entry.inputConnecting;
-
-  entry.inputConnecting = (async () => {
-    const firstAttempt = await createTableInputChannel(tableId);
-    if (firstAttempt) return firstAttempt;
-
-    await sleep(ACTION_CHANNEL_RETRY_DELAY_MS);
-    return createTableInputChannel(tableId);
+    return channel;
   })();
 
   try {
@@ -702,71 +689,6 @@ async function ensureTableInputChannel(tableId: number) {
   } finally {
     entry.inputConnecting = undefined;
   }
-}
-
-export function requestTableStateSnapshot(tableId: number, force = false) {
-  const entry = tableCache.get(tableId);
-  entry?.requestSnapshot?.(force);
-}
-
-export async function refreshTableStateConnection(tableId: number, force = false) {
-  await ensureTableStateCache(tableId);
-  requestTableStateSnapshot(tableId, force);
-}
-
-type TableInputEvent = 'player_action' | 'player_return' | 'private_cards_request';
-
-async function sendTableInputBroadcast(tableId: number, event: TableInputEvent, payload: Record<string, unknown>) {
-  try {
-    await ensureTableStateCache(tableId);
-  } catch {
-    // The action channel can still be used if the state cache is reconnecting.
-  }
-
-  const entry = getEntry(tableId);
-  const actionChannel = await ensureTableActionChannel(tableId);
-  const inputChannel = await ensureTableInputChannel(tableId);
-  const targets: Array<{ kind: 'input' | 'actions' | 'spectator'; channel: RealtimeChannel }> = [];
-  if (inputChannel) {
-    targets.push({ kind: 'input', channel: inputChannel });
-  }
-  if (actionChannel) {
-    targets.push({ kind: 'actions', channel: actionChannel });
-  }
-  if (entry.channel && isReusableStateChannel(entry.channel)) {
-    targets.push({ kind: 'spectator', channel: entry.channel });
-  }
-
-  if (targets.length === 0) {
-    return 'channel_unavailable';
-  }
-
-  const results = await Promise.all(targets.map(async ({ kind, channel }) => {
-    let status: string;
-    try {
-      status = await channel.send({
-        type: 'broadcast',
-        event,
-        payload,
-      });
-    } catch {
-      status = 'send_error';
-    }
-
-    if (status !== 'ok') {
-      if (kind === 'actions') {
-        await resetTableActionChannel(tableId, channel);
-      } else if (kind === 'input') {
-        await resetTableInputChannel(tableId, channel);
-      } else if (entry.channel === channel) {
-        await resetTableChannel(tableId, channel);
-      }
-    }
-
-    return status;
-  }));
-
-  return results.includes('ok') ? 'ok' : results[0] ?? 'channel_unavailable';
 }
 
 export async function sendTablePlayerAction(tableId: number, payload: Record<string, unknown>) {

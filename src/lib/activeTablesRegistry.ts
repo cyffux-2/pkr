@@ -51,6 +51,14 @@ export function setActiveTablesForUser(userId: string, tables: ActiveTableEntry[
   notify(userId);
 }
 
+export function removeActiveTournamentForUser(userId: string, tournamentId: number) {
+  const current = activeTablesByUser.get(userId) ?? [];
+  setActiveTablesForUser(
+    userId,
+    current.filter(table => table.tournamentId !== tournamentId),
+  );
+}
+
 export function clearActiveTablesForUser(userId: string) {
   if (!activeTablesByUser.has(userId)) return;
   activeTablesByUser.delete(userId);

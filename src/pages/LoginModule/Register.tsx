@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { translateAuthError } from '../../lib/authErrors';
-import { getPublicUrl } from '../../lib/publicUrl';
+import { useAuth } from '../../context/AuthContext';
 import styles from './auth.module.css';
 
 type Level = 'debutant' | 'intermediaire' | 'avance';
@@ -15,6 +15,7 @@ const LEVEL_ELO: Record<Level, number> = {
 
 export default function Register() {
   const navigate = useNavigate();
+  const { syncAuthSession } = useAuth();
   const [email, setEmail] = useState('');
   const [pseudo, setPseudo] = useState('');
   const [password, setPassword] = useState('');
@@ -51,9 +52,15 @@ export default function Register() {
       setError(translateAuthError(error.message));
     } else {
       if (data.session) {
+        const activeSession = await syncAuthSession(data.session);
+        if (!activeSession?.access_token) {
+          setError('Connexion incomplète. Réessaie dans quelques secondes.');
+          setLoading(false);
+          return;
+        }
         navigate('/home', { replace: true });
       } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email: email.trim(),
           password,
         });
@@ -61,6 +68,12 @@ export default function Register() {
         if (signInError) {
           setError(translateAuthError(signInError.message));
         } else {
+          const activeSession = await syncAuthSession(signInData.session ?? undefined);
+          if (!activeSession?.access_token) {
+            setError('Connexion incomplète. Réessaie dans quelques secondes.');
+            setLoading(false);
+            return;
+          }
           navigate('/home', { replace: true });
         }
       }
@@ -81,7 +94,7 @@ export default function Register() {
           <div className={styles.logoCircle}>
             {/* Si tu as un SVG spécifique pour le logo K en diamant, insère-le ici */}
             <div className={styles.logo}>
-              <img src={getPublicUrl('/logo.png')} alt="Logo PKR" className={styles.logoImage} />
+              <img src="/logo.png" alt="Logo PKR" className={styles.logoImage} />
             </div>
           </div>
         </div>

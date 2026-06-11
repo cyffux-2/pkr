@@ -3,12 +3,13 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { translateAuthError } from '../../lib/authErrors';
 import { formatLiveStatNumber, useLiveSiteStats } from '../../lib/useLiveSiteStats';
-import { getPublicUrl } from '../../lib/publicUrl';
+import { useAuth } from '../../context/AuthContext';
 import styles from './auth.module.css';
 
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { syncAuthSession } = useAuth();
   const { stats, loading: statsLoading } = useLiveSiteStats();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -54,10 +55,16 @@ export default function Login() {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setError(translateAuthError(error.message));
     } else {
+      const activeSession = await syncAuthSession(data.session ?? undefined);
+      if (!activeSession?.access_token) {
+        setError('Connexion incomplète. Réessaie dans quelques secondes.');
+        setLoading(false);
+        return;
+      }
       navigate('/home');
     }
     setLoading(false);
@@ -76,7 +83,7 @@ export default function Login() {
           {/* Contenu textuel (flux normal) */}
           <div className={styles.leftContent}>
             <div className={styles.logoLeft}>
-              <img src={getPublicUrl('/logo.png')} alt="Logo PKR" className={styles.logoImageLeft} />
+              <img src="/logo.png" alt="Logo PKR" className={styles.logoImageLeft} />
             </div>
             <h2 className={styles.heroTitle}>DÉFIE LES<br />MEILLEURS</h2>
             <p className={styles.heroDesc}>
@@ -101,9 +108,9 @@ export default function Login() {
             </svg>
 
             {/* Chip stack 1 — en haut au centre de la table */}
-            <img src={getPublicUrl('/jeton.png')} alt="Jetons" className={styles.chipStack1} />
+            <img src="/jeton.png" alt="Jetons" className={styles.chipStack1} />
             {/* Chip stack 2 — en bas au centre de la table */}
-            <img src={getPublicUrl('/jeton.png')} alt="Jetons" className={styles.chipStack2} />
+            <img src="/jeton.png" alt="Jetons" className={styles.chipStack2} />
 
             {/* Stats par-dessus le bord bas de la table */}
             <div className={styles.heroStats}>
@@ -127,7 +134,7 @@ export default function Login() {
         {/* Panneau droit clair */}
         <div className={styles.cardLight}>
           <div className={styles.logo}>
-            <img src={getPublicUrl('/logo.png')} alt="Logo PKR" className={styles.logoImage} />
+            <img src="/logo.png" alt="Logo PKR" className={styles.logoImage} />
           </div>
           <p className={styles.subtitleLight}>Connecte-toi pour reprendre la compétition.</p>
 

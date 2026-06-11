@@ -1,7 +1,7 @@
 {
   "files": {
     "main.css": "/pkr/static/css/main.2ffd2c2a.css",
-    "main.js": "/pkr/static/js/main.8dff1a96.js",
+    "main.js": "/pkr/static/js/main.2c45a35d.js",
     "static/media/bot_and_auto.svg": "/pkr/static/media/bot_and_auto.4f8b2b65eb4bcdc57367.svg",
     "static/media/background.svg": "/pkr/static/media/background.fe7180ff47a8eda16132.svg",
     "static/media/01-pkr-alpha.svg": "/pkr/static/media/01-pkr-alpha.f5982a9789ee287aaf62.svg",
@@ -10,10 +10,10 @@
     "index.html": "/pkr/index.html",
     "static/media/polygon-light.svg": "/pkr/static/media/polygon-light.c53b9c181f482e052912.svg",
     "main.2ffd2c2a.css.map": "/pkr/static/css/main.2ffd2c2a.css.map",
-    "main.8dff1a96.js.map": "/pkr/static/js/main.8dff1a96.js.map"
+    "main.2c45a35d.js.map": "/pkr/static/js/main.2c45a35d.js.map"
   },
   "entrypoints": [
     "static/css/main.2ffd2c2a.css",
-    "static/js/main.8dff1a96.js"
+    "static/js/main.2c45a35d.js"
   ]
 }

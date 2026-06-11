@@ -24,7 +24,6 @@ import NotFound from './pages/NotFound';
 
 const PAGE_TITLES: Record<string, string> = {
   '/': 'PKR - Connexion',
-  '/pkr': 'PKR - Connexion',
   '/login': 'PKR - Connexion',
   '/register': 'PKR - Creation de compte',
   '/home': 'PKR - Accueil',
@@ -59,13 +58,12 @@ function PageTitle() {
 
 function AppRoutes() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={process.env.PUBLIC_URL || undefined}>
       <PageTitle />
       <TableTurnAutoSwitcher />
       <Routes>
         {/* Pages sans Navbar */}
         <Route path="/"               element={<Login />} />
-        <Route path="/pkr"            element={<Navigate to="/login" replace />} />
         <Route path="/home"           element={<Home />} />
         <Route path="/settings"       element={<Settings />} />
         <Route path="/login"          element={<Login />} />

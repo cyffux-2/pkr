@@ -36,13 +36,14 @@ GitHub Pages.
 
 Conserver aussi dans src/App.tsx:
 
-- le titre de page pour /pkr;
-- la route:
-  <Route path="/pkr" element={<Navigate to="/login" replace />} />
+- BrowserRouter doit utiliser le basename public:
+  <BrowserRouter basename={process.env.PUBLIC_URL || undefined}>
 
 But:
-ouvrir https://cyffux-2.github.io/pkr doit rediriger automatiquement vers
-la page de connexion /login dans l'application.
+ouvrir https://cyffux-2.github.io/pkr doit etre traite comme la racine "/"
+de l'application et afficher la page de connexion. Les navigations internes
+comme /login, /home ou /tournaments restent automatiquement sous /pkr en
+production GitHub Pages.
 
 
 3. Chemins des assets publics
@@ -79,8 +80,8 @@ Ne pas remplacer aveuglement ces fichiers par ceux de pkr-front:
 - src/lib/publicAssets.ts
 
 Si src/App.tsx, Home.tsx, Tournaments.tsx, Trio.tsx ou Headup.tsx sont copies
-depuis pkr-front, verifier ensuite que les adaptations getPublicUrl et la route
-/pkr sont toujours presentes.
+depuis pkr-front, verifier ensuite que les adaptations getPublicUrl et le
+basename BrowserRouter sont toujours presents.
 
 
 6. Verification apres synchronisation

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { getPublicUrl } from '../../lib/publicUrl';
+import { applyPublicImageFallback, getPublicUrl } from '../../lib/publicUrl';
 import styles from './auth.module.css';
 
 export default function AuthCallback() {
@@ -48,7 +48,7 @@ export default function AuthCallback() {
 
       <div className={styles.card}>
         <div className={styles.logo}>
-          <img src={getPublicUrl('/logo.png')} alt="Logo PKR" className={styles.logoImage} />
+          <img src={getPublicUrl('/logo.png')} onError={event => applyPublicImageFallback(event.currentTarget, '/logo.png')} alt="Logo PKR" className={styles.logoImage} />
         </div>
 
         {error ? (

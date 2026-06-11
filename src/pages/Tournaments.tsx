@@ -16,7 +16,7 @@ import {
   watchActiveTablesForUser,
   type ActiveTableEntry,
 } from '../lib/activeTablesRegistry';
-import { getPublicUrl } from '../lib/publicUrl';
+import { applyPublicImageFallback, getPublicUrl } from '../lib/publicUrl';
 import PlayerAvatar from '../components/PlayerAvatar';
 import { TournamentTableTab } from '../components/TournamentTableTab';
 import { ProfilePopup } from './ProfilModule/ProfilePopup';
@@ -559,7 +559,7 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
     <div className={`${styles.page} ${config.pageClassName ?? ''}`} data-name={config.dataName}>
       <aside className={styles.sidebar}>
         <button className={styles.logoWrap} onClick={() => navigate('/home')} aria-label="Accueil">
-          <img src={getPublicUrl('/figma/main-page-nothing/pkr-logo-black-bg.png')} alt="PKR" className={styles.logoImg} />
+          <img src={getPublicUrl('/figma/main-page-nothing/pkr-logo-black-bg.png')} onError={event => applyPublicImageFallback(event.currentTarget, '/figma/main-page-nothing/pkr-logo-black-bg.png')} alt="PKR" className={styles.logoImg} />
         </button>
 
         <nav className={styles.modeList}>
@@ -577,7 +577,7 @@ export function TournamentSelectionPage({ mode = 'tournament' }: { mode?: Tourna
 
         <div className={styles.bottomIcons}>
           <button className={styles.iconBtn} onClick={() => navigate('/settings')} title="Paramètres">
-            <img src={getPublicUrl('/figma/main-page-nothing/settings-icon.svg')} alt="" className={styles.iconImg} />
+            <img src={getPublicUrl('/figma/main-page-nothing/settings-icon.svg')} onError={event => applyPublicImageFallback(event.currentTarget, '/figma/main-page-nothing/settings-icon.svg')} alt="" className={styles.iconImg} />
           </button>
           <button className={styles.iconBtn} onClick={() => setOpenProfile(true)} title="Profil">
             <PlayerAvatar

@@ -53,6 +53,10 @@ Conserver src/lib/publicUrl.ts.
 Les assets charges depuis public/ doivent utiliser getPublicUrl(...) au lieu
 d'un chemin absolu commencant par /.
 
+Les images publiques importantes doivent aussi utiliser applyPublicImageFallback
+sur onError. Cela permet de tenter une URL relative si le contexte GitHub Pages
+ou le cache navigateur sert encore une ancienne base.
+
 Exemples a conserver:
 
 - getPublicUrl('/logo.png')
@@ -74,12 +78,15 @@ Verifier en particulier les pages d'authentification:
 
 Ces pages ne doivent pas contenir src="/logo.png" ou src="/jeton.png".
 Elles doivent utiliser getPublicUrl('/logo.png') et getPublicUrl('/jeton.png').
+Elles doivent aussi appeler applyPublicImageFallback dans onError pour ces
+images.
 
 Verifier aussi les assets publics de rang dans:
 
 - src/components/PlayerStatsPanel.tsx
 
 Ils doivent utiliser getPublicUrl(`/Assets/${rankProgress.tier.asset}`).
+Ils doivent aussi utiliser applyPublicImageFallback dans onError.
 
 
 4. Helpers historiques
@@ -103,8 +110,9 @@ Si src/App.tsx, Home.tsx, Tournaments.tsx, Trio.tsx ou Headup.tsx sont copies
 depuis pkr-front, verifier ensuite que les adaptations getPublicUrl et le
 basename BrowserRouter sont toujours presents.
 
-Si les pages LoginModule ou PlayerStatsPanel sont copiees depuis pkr-front,
-repasser tous les chemins d'images public/ par getPublicUrl.
+Si les pages LoginModule, les menus principaux ou PlayerStatsPanel sont copies
+depuis pkr-front, repasser tous les chemins d'images public/ par getPublicUrl
+et ajouter applyPublicImageFallback sur onError.
 
 
 6. Verification apres synchronisation

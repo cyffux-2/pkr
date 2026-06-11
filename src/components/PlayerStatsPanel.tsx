@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { supabase } from '../lib/supabase';
-import { getPublicUrl } from '../lib/publicUrl';
+import { applyPublicImageFallback, getPublicUrl } from '../lib/publicUrl';
 import PlayerAvatar from './PlayerAvatar';
 import styles from './PlayerStatsPanel.module.css';
 
@@ -776,7 +776,12 @@ function RankProgressCard({ rankProgress }: { rankProgress: ReturnType<typeof ge
   return (
     <div className={styles.rankProgressCard}>
       <div className={styles.rankAssetFrame}>
-        <img className={styles.rankAsset} src={assetSrc} alt={rankProgress.tier.label} />
+        <img
+          className={styles.rankAsset}
+          src={assetSrc}
+          onError={event => applyPublicImageFallback(event.currentTarget, `/Assets/${rankProgress.tier.asset}`)}
+          alt={rankProgress.tier.label}
+        />
       </div>
       <div className={styles.rankProgressContent}>
         <div className={styles.rankProgressHeader}>

@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { translateAuthError } from '../../lib/authErrors';
 import { formatLiveStatNumber, useLiveSiteStats } from '../../lib/useLiveSiteStats';
 import { useAuth } from '../../context/AuthContext';
-import { getPublicUrl } from '../../lib/publicUrl';
+import { applyPublicImageFallback, getPublicUrl } from '../../lib/publicUrl';
 import styles from './auth.module.css';
 
 export default function Login() {
@@ -84,7 +84,7 @@ export default function Login() {
           {/* Contenu textuel (flux normal) */}
           <div className={styles.leftContent}>
             <div className={styles.logoLeft}>
-              <img src={getPublicUrl('/logo.png')} alt="Logo PKR" className={styles.logoImageLeft} />
+              <img src={getPublicUrl('/logo.png')} onError={event => applyPublicImageFallback(event.currentTarget, '/logo.png')} alt="Logo PKR" className={styles.logoImageLeft} />
             </div>
             <h2 className={styles.heroTitle}>DÉFIE LES<br />MEILLEURS</h2>
             <p className={styles.heroDesc}>
@@ -109,9 +109,9 @@ export default function Login() {
             </svg>
 
             {/* Chip stack 1 — en haut au centre de la table */}
-            <img src={getPublicUrl('/jeton.png')} alt="Jetons" className={styles.chipStack1} />
+            <img src={getPublicUrl('/jeton.png')} onError={event => applyPublicImageFallback(event.currentTarget, '/jeton.png')} alt="Jetons" className={styles.chipStack1} />
             {/* Chip stack 2 — en bas au centre de la table */}
-            <img src={getPublicUrl('/jeton.png')} alt="Jetons" className={styles.chipStack2} />
+            <img src={getPublicUrl('/jeton.png')} onError={event => applyPublicImageFallback(event.currentTarget, '/jeton.png')} alt="Jetons" className={styles.chipStack2} />
 
             {/* Stats par-dessus le bord bas de la table */}
             <div className={styles.heroStats}>
@@ -135,7 +135,7 @@ export default function Login() {
         {/* Panneau droit clair */}
         <div className={styles.cardLight}>
           <div className={styles.logo}>
-            <img src={getPublicUrl('/logo.png')} alt="Logo PKR" className={styles.logoImage} />
+            <img src={getPublicUrl('/logo.png')} onError={event => applyPublicImageFallback(event.currentTarget, '/logo.png')} alt="Logo PKR" className={styles.logoImage} />
           </div>
           <p className={styles.subtitleLight}>Connecte-toi pour reprendre la compétition.</p>
 

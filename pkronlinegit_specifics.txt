@@ -1,0 +1,110 @@
+PKRONLINEGIT - Modifications specifiques de deploiement
+=======================================================
+
+Objectif
+--------
+Ce fichier sert de rappel pour synchroniser pkronlinegit avec pkr-front
+sans casser le deploiement GitHub Pages.
+
+Lors d'une copie depuis pkr-front vers pkronlinegit, conserver ou reappliquer
+les points ci-dessous.
+
+
+1. package.json
+---------------
+Conserver les differences de deploiement:
+
+- script:
+  "deploy": "gh-pages -d build"
+
+- homepage:
+  "https://cyffux-2.github.io/pkr"
+
+- devDependency:
+  "gh-pages"
+
+Ces elements permettent de construire l'app avec le bon chemin public /pkr/.
+
+
+2. Routing GitHub Pages
+-----------------------
+Conserver public/404.html.
+
+Ce fichier permet aux routes SPA comme /pkr/login, /pkr/tournaments,
+/pkr/game/... de retomber sur index.html au lieu d'afficher une erreur 404
+GitHub Pages.
+
+Conserver aussi dans src/App.tsx:
+
+- le titre de page pour /pkr;
+- la route:
+  <Route path="/pkr" element={<Navigate to="/login" replace />} />
+
+But:
+ouvrir https://cyffux-2.github.io/pkr doit rediriger automatiquement vers
+la page de connexion /login dans l'application.
+
+
+3. Chemins des assets publics
+-----------------------------
+Conserver src/lib/publicUrl.ts.
+
+Les assets charges depuis public/ doivent utiliser getPublicUrl(...) au lieu
+d'un chemin absolu commencant par /.
+
+Exemples a conserver:
+
+- getPublicUrl('/figma/main-page-nothing/pkr-logo-black-bg.png')
+- getPublicUrl('/figma/main-page-nothing/settings-icon.svg')
+
+Sinon, en production GitHub Pages, le navigateur cherchera les fichiers a la
+racine du domaine au lieu de /pkr/.
+
+
+4. Helpers historiques
+----------------------
+Conserver src/lib/publicAssets.ts si le repo l'utilise encore ou si une
+ancienne synchronisation en depend.
+
+
+5. Fichiers a ne pas ecraser sans verification
+----------------------------------------------
+Ne pas remplacer aveuglement ces fichiers par ceux de pkr-front:
+
+- .env
+- package.json
+- package-lock.json
+- public/404.html
+- src/lib/publicUrl.ts
+- src/lib/publicAssets.ts
+
+Si src/App.tsx, Home.tsx, Tournaments.tsx, Trio.tsx ou Headup.tsx sont copies
+depuis pkr-front, verifier ensuite que les adaptations getPublicUrl et la route
+/pkr sont toujours presentes.
+
+
+6. Verification apres synchronisation
+-------------------------------------
+Commandes recommandees:
+
+npm run build
+
+Puis verifier que la sortie indique:
+
+The project was built assuming it is hosted at /pkr/.
+
+Comparer avec pkr-front en ignorant les differences attendues:
+
+diff -qr \
+  --exclude .git \
+  --exclude node_modules \
+  --exclude build \
+  --exclude .env \
+  --exclude package.json \
+  --exclude package-lock.json \
+  --exclude .gitignore \
+  --exclude 404.html \
+  --exclude publicAssets.ts \
+  --exclude publicUrl.ts \
+  /home/paul-loup/Documents/projects/pkr/pkr-front \
+  /home/paul-loup/Documents/projects/pkr/pkronlinegit

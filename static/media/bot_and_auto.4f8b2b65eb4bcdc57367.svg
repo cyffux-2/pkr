@@ -1,0 +1,491 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="1600"
+   height="900"
+   viewBox="0 0 1600 900"
+   fill="none"
+   version="1.1"
+   id="svg28"
+   sodipodi:docname="bot_and_auto.svg"
+   inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview28"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="0.834375"
+     inkscape:cx="799.40075"
+     inkscape:cy="417.07865"
+     inkscape:window-width="1920"
+     inkscape:window-height="1011"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg28" />
+  <defs
+     id="defs8">
+    <rect
+       x="1041.4981"
+       y="291.23596"
+       width="55.131086"
+       height="45.543071"
+       id="rect32" />
+    <rect
+       x="1001.9476"
+       y="298.42697"
+       width="1.1985019"
+       height="27.565543"
+       id="rect31" />
+    <rect
+       x="798.20225"
+       y="299.62547"
+       width="1.1985019"
+       height="27.565543"
+       id="rect30" />
+    <rect
+       x="723.89513"
+       y="244.49438"
+       width="5.9925094"
+       height="45.543071"
+       id="rect29" />
+    <rect
+       x="720.29963"
+       y="266.06742"
+       width="8.3895131"
+       height="27.565543"
+       id="rect28" />
+    <radialGradient
+       id="bgGlow"
+       cx="50%"
+       cy="45%"
+       r="70%">
+      <stop
+         offset="0%"
+         stop-color="#1B9C85"
+         stop-opacity="0.55"
+         id="stop1" />
+      <stop
+         offset="45%"
+         stop-color="#0E1D2F"
+         stop-opacity="1"
+         id="stop2" />
+      <stop
+         offset="100%"
+         stop-color="#05070D"
+         stop-opacity="1"
+         id="stop3" />
+    </radialGradient>
+    <linearGradient
+       id="cardGrad"
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="1">
+      <stop
+         offset="0%"
+         stop-color="#FFFFFF"
+         id="stop4" />
+      <stop
+         offset="100%"
+         stop-color="#DDE8F0"
+         id="stop5" />
+    </linearGradient>
+    <linearGradient
+       id="accent"
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="0">
+      <stop
+         offset="0%"
+         stop-color="#00F5A0"
+         id="stop6" />
+      <stop
+         offset="100%"
+         stop-color="#00D9F5"
+         id="stop7" />
+    </linearGradient>
+    <filter
+       id="shadow"
+       x="-0.0125"
+       y="-0.020833333"
+       width="1.025"
+       height="1.0416667">
+      <feDropShadow
+         dx="0"
+         dy="24"
+         stdDeviation="28"
+         flood-color="#000000"
+         flood-opacity="0.45" />
+    </filter>
+    <filter
+       id="softGlow"
+       x="-0.083076923"
+       y="-0.083076923"
+       width="1.1661538"
+       height="1.1661538">
+      <feGaussianBlur
+         stdDeviation="18"
+         result="blur"
+         id="feGaussianBlur7" />
+      <feMerge
+         id="feMerge8">
+        <feMergeNode
+           in="blur"
+           id="feMergeNode7" />
+        <feMergeNode
+           in="SourceGraphic"
+           id="feMergeNode8" />
+      </feMerge>
+    </filter>
+    <pattern
+       id="grid"
+       width="64"
+       height="64"
+       patternUnits="userSpaceOnUse">
+      <path
+         d="M64 0H0V64"
+         stroke="#FFFFFF"
+         stroke-opacity="0.045"
+         stroke-width="1"
+         id="path8" />
+    </pattern>
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#accent"
+       id="linearGradient32"
+       x1="127.85718"
+       y1="1141.5864"
+       x2="281.14109"
+       y2="1141.5864"
+       gradientTransform="scale(3.9153564,0.25540459)"
+       gradientUnits="userSpaceOnUse" />
+  </defs>
+  <rect
+     width="1600"
+     height="900"
+     fill="url(#bgGlow)"
+     id="rect8" />
+  <rect
+     width="1600"
+     height="900"
+     fill="url(#grid)"
+     id="rect9" />
+  <circle
+     cx="1300"
+     cy="180"
+     r="260"
+     fill="#00F5A0"
+     opacity="0.10"
+     filter="url(#softGlow)"
+     id="circle9" />
+  <circle
+     cx="210"
+     cy="760"
+     r="280"
+     fill="#00D9F5"
+     opacity="0.10"
+     filter="url(#softGlow)"
+     id="circle10" />
+  <g
+     filter="url(#shadow)"
+     id="g10">
+    <rect
+       x="575"
+       y="70"
+       width="450"
+       height="72"
+       rx="36"
+       fill="#07111D"
+       stroke="url(#accent)"
+       stroke-width="3"
+       id="rect10" />
+    <text
+       x="800"
+       y="116"
+       text-anchor="middle"
+       fill="#EAFBFF"
+       font-family="Inter, Arial, sans-serif"
+       font-size="30"
+       font-weight="800"
+       letter-spacing="2"
+       id="text10">NOUVELLE VERSION</text>
+  </g>
+  <text
+     x="800"
+     y="250"
+     text-anchor="middle"
+     fill="#ffffff"
+     font-family="Inter, Arial, sans-serif"
+     font-size="124px"
+     font-weight="900"
+     letter-spacing="6"
+     id="text11" />
+  <text
+     x="800"
+     y="322"
+     text-anchor="middle"
+     fill="url(#accent)"
+     font-family="Inter, Arial, sans-serif"
+     font-size="42px"
+     font-weight="800"
+     id="text12"
+     style="white-space:pre;inline-size:650.498;display:inline;fill:url(#linearGradient32)"
+     transform="translate(4.7940075,-43.146068)"
+     xml:space="preserve"><tspan
+       x="800"
+       y="322"
+       id="tspan2">Le jeu devient enfin autonome</tspan></text>
+  <g
+     filter="url(#shadow)"
+     id="g13">
+    <rect
+       x="270"
+       y="385"
+       width="1060"
+       height="310"
+       rx="60"
+       fill="#09251F"
+       stroke="#16E6A5"
+       stroke-opacity="0.8"
+       stroke-width="6"
+       id="rect12" />
+    <rect
+       x="315"
+       y="430"
+       width="970"
+       height="220"
+       rx="48"
+       fill="#0F3A30"
+       stroke="#D6FFF2"
+       stroke-opacity="0.18"
+       stroke-width="3"
+       id="rect13" />
+    <ellipse
+       cx="800"
+       cy="540"
+       rx="345"
+       ry="92"
+       fill="#071B17"
+       opacity="0.55"
+       id="ellipse13" />
+  </g>
+  <g
+     transform="translate(575 455) rotate(-8)"
+     filter="url(#shadow)"
+     id="g15">
+    <rect
+       width="115"
+       height="165"
+       rx="18"
+       fill="url(#cardGrad)"
+       id="rect14" />
+    <text
+       x="22"
+       y="44"
+       fill="#111827"
+       font-family="Georgia, serif"
+       font-size="38"
+       font-weight="900"
+       id="text14">A</text>
+    <text
+       x="62"
+       y="102"
+       text-anchor="middle"
+       fill="#D71E36"
+       font-family="Arial, sans-serif"
+       font-size="72"
+       id="text15">♥</text>
+  </g>
+  <g
+     transform="translate(690 443) rotate(5)"
+     filter="url(#shadow)"
+     id="g17">
+    <rect
+       width="115"
+       height="165"
+       rx="18"
+       fill="url(#cardGrad)"
+       id="rect15" />
+    <text
+       x="22"
+       y="44"
+       fill="#111827"
+       font-family="Georgia, serif"
+       font-size="38"
+       font-weight="900"
+       id="text16">K</text>
+    <text
+       x="62"
+       y="102"
+       text-anchor="middle"
+       fill="#111827"
+       font-family="Arial, sans-serif"
+       font-size="72"
+       id="text17">♠</text>
+  </g>
+  <g
+     transform="translate(865 462)"
+     filter="url(#shadow)"
+     id="g20">
+    <rect
+       x="0"
+       y="30"
+       width="160"
+       height="122"
+       rx="32"
+       fill="#102B43"
+       stroke="#00D9F5"
+       stroke-width="4"
+       id="rect17" />
+    <rect
+       x="35"
+       y="0"
+       width="90"
+       height="48"
+       rx="24"
+       fill="#102B43"
+       stroke="#00D9F5"
+       stroke-width="4"
+       id="rect18" />
+    <circle
+       cx="55"
+       cy="90"
+       r="14"
+       fill="#00F5A0"
+       id="circle18" />
+    <circle
+       cx="105"
+       cy="90"
+       r="14"
+       fill="#00F5A0"
+       id="circle19" />
+    <path
+       d="M53 122C70 137 95 137 112 122"
+       stroke="#EAFBFF"
+       stroke-width="6"
+       stroke-linecap="round"
+       id="path19" />
+    <path
+       d="M80 0V-28"
+       stroke="#00D9F5"
+       stroke-width="5"
+       stroke-linecap="round"
+       id="path20" />
+    <circle
+       cx="80"
+       cy="-36"
+       r="10"
+       fill="#00D9F5"
+       id="circle20" />
+  </g>
+  <g
+     font-family="Inter, Arial, sans-serif"
+     font-weight="800"
+     font-size="30"
+     id="g23">
+    <g
+       filter="url(#shadow)"
+       id="g21">
+      <rect
+         x="225"
+         y="725"
+         width="520"
+         height="78"
+         rx="39"
+         fill="#07111D"
+         stroke="#00F5A0"
+         stroke-opacity="0.85"
+         stroke-width="3"
+         id="rect20" />
+      <text
+         x="485"
+         y="775"
+         text-anchor="middle"
+         fill="#FFFFFF"
+         id="text20">🤖 Bots disponibles</text>
+    </g>
+    <g
+       filter="url(#shadow)"
+       id="g22">
+      <rect
+         x="855"
+         y="725"
+         width="520"
+         height="78"
+         rx="39"
+         fill="#07111D"
+         stroke="#00D9F5"
+         stroke-opacity="0.85"
+         stroke-width="3"
+         id="rect21" />
+      <text
+         x="1115"
+         y="775"
+         text-anchor="middle"
+         fill="#FFFFFF"
+         id="text21">🏆 Tournois automatiques</text>
+    </g>
+  </g>
+  <g
+     opacity="0.9"
+     id="g28">
+    <circle
+       cx="1235"
+       cy="318"
+       r="25"
+       fill="#00F5A0"
+       opacity="0.75"
+       id="circle25" />
+    <circle
+       cx="362"
+       cy="585"
+       r="18"
+       fill="#00D9F5"
+       opacity="0.75"
+       id="circle26" />
+    <circle
+       cx="1180"
+       cy="110"
+       r="12"
+       fill="#FFFFFF"
+       opacity="0.7"
+       id="circle27" />
+    <circle
+       cx="420"
+       cy="135"
+       r="10"
+       fill="#FFFFFF"
+       opacity="0.6"
+       id="circle28" />
+  </g>
+  <text
+     xml:space="preserve"
+     id="text28"
+     style="writing-mode:lr-tb;direction:ltr;white-space:pre;shape-inside:url(#rect28);display:inline;fill:#000000" />
+  <text
+     xml:space="preserve"
+     id="text29"
+     style="writing-mode:lr-tb;direction:ltr;white-space:pre;shape-inside:url(#rect29);display:inline;fill:#000000" />
+  <text
+     xml:space="preserve"
+     id="text30"
+     style="writing-mode:lr-tb;direction:ltr;white-space:pre;shape-inside:url(#rect30);display:inline;fill:#000000" />
+  <text
+     xml:space="preserve"
+     id="text31"
+     style="writing-mode:lr-tb;direction:ltr;white-space:pre;shape-inside:url(#rect31);display:inline;fill:#000000" />
+  <text
+     xml:space="preserve"
+     id="text32"
+     style="writing-mode:lr-tb;direction:ltr;white-space:pre;shape-inside:url(#rect32);display:inline;fill:#000000" />
+</svg>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { translateAuthError } from '../../lib/authErrors';
+import { getPublicUrl } from '../../lib/publicUrl';
 import styles from './auth.module.css';
 
 type RecoveryStep = 'email' | 'code';
@@ -104,7 +105,7 @@ export default function ForgotPassword() {
 
       <div className={styles.card}>
         <div className={styles.logo}>
-          <img src="/logo.png" alt="Logo PKR" className={styles.logoImage} />
+          <img src={getPublicUrl('/logo.png')} alt="Logo PKR" className={styles.logoImage} />
         </div>
 
         {step === 'code' ? (

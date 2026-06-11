@@ -55,11 +55,31 @@ d'un chemin absolu commencant par /.
 
 Exemples a conserver:
 
+- getPublicUrl('/logo.png')
+- getPublicUrl('/jeton.png')
+- getPublicUrl('/Assets/Bronze.png')
 - getPublicUrl('/figma/main-page-nothing/pkr-logo-black-bg.png')
 - getPublicUrl('/figma/main-page-nothing/settings-icon.svg')
 
 Sinon, en production GitHub Pages, le navigateur cherchera les fichiers a la
 racine du domaine au lieu de /pkr/.
+
+Verifier en particulier les pages d'authentification:
+
+- src/pages/LoginModule/Login.tsx
+- src/pages/LoginModule/Register.tsx
+- src/pages/LoginModule/ForgotPassword.tsx
+- src/pages/LoginModule/ResetPassword.tsx
+- src/pages/LoginModule/AuthCallback.tsx
+
+Ces pages ne doivent pas contenir src="/logo.png" ou src="/jeton.png".
+Elles doivent utiliser getPublicUrl('/logo.png') et getPublicUrl('/jeton.png').
+
+Verifier aussi les assets publics de rang dans:
+
+- src/components/PlayerStatsPanel.tsx
+
+Ils doivent utiliser getPublicUrl(`/Assets/${rankProgress.tier.asset}`).
 
 
 4. Helpers historiques
@@ -82,6 +102,9 @@ Ne pas remplacer aveuglement ces fichiers par ceux de pkr-front:
 Si src/App.tsx, Home.tsx, Tournaments.tsx, Trio.tsx ou Headup.tsx sont copies
 depuis pkr-front, verifier ensuite que les adaptations getPublicUrl et le
 basename BrowserRouter sont toujours presents.
+
+Si les pages LoginModule ou PlayerStatsPanel sont copiees depuis pkr-front,
+repasser tous les chemins d'images public/ par getPublicUrl.
 
 
 6. Verification apres synchronisation

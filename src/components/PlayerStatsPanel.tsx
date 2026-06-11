@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { supabase } from '../lib/supabase';
+import { getPublicUrl } from '../lib/publicUrl';
 import PlayerAvatar from './PlayerAvatar';
 import styles from './PlayerStatsPanel.module.css';
 
@@ -770,7 +771,7 @@ export default function PlayerStatsPanel({ profile, metrics, mode = 'page', onCl
 }
 
 function RankProgressCard({ rankProgress }: { rankProgress: ReturnType<typeof getRankProgress> }) {
-  const assetSrc = `${process.env.PUBLIC_URL}/Assets/${rankProgress.tier.asset}`;
+  const assetSrc = getPublicUrl(`/Assets/${rankProgress.tier.asset}`);
 
   return (
     <div className={styles.rankProgressCard}>
